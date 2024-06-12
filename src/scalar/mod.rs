@@ -1,6 +1,7 @@
-mod ristretto255;
+mod pasta;
 
-pub type Scalar = ristretto255::Scalar;
+pub type Scalar = pasta::fq::Fq;
+// TODO: need to change ScalarBytes
 pub type ScalarBytes = curve25519_dalek::scalar::Scalar;
 
 pub trait ScalarFromPrimitives {

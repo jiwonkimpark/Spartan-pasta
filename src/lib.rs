@@ -30,6 +30,7 @@ mod sumcheck;
 mod timer;
 mod transcript;
 mod unipoly;
+mod arithmetic;
 
 use core::cmp::max;
 use errors::{ProofVerifyError, R1CSError};

@@ -1,3 +1,4 @@
+use ff::Field;
 use super::scalar::Scalar;
 use super::transcript::ProofTranscript;
 use merlin::Transcript;
