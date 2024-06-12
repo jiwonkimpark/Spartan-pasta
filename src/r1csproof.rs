@@ -490,6 +490,7 @@ impl R1CSProof {
 
 #[cfg(test)]
 mod tests {
+  use ff::Field;
   use super::*;
   use rand::rngs::OsRng;
 

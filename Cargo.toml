@@ -30,6 +30,8 @@ itertools = { version = "0.10.0", default-features = false }
 colored = { version = "2.0.0", default-features = false, optional = true }
 flate2 = { version = "1.0.14" }
 ff = { version = "0.13.0" }
+static_assertions = "1.1.0"
+hex = { version = "0.4.3", features = ["serde"] }
 
 [dev-dependencies]
 criterion = "0.3.1"

@@ -10,6 +10,8 @@ use lazy_static::lazy_static;
 
 #[cfg(feature = "bits")]
 use ff::{FieldBits, PrimeFieldBits};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error;
 
 use crate::arithmetic::fields::{adc, mac, sbb, SqrtTableHelpers};
 
@@ -343,7 +345,7 @@ impl<T: ::core::borrow::Borrow<Fq>> ::core::iter::Product<T> for Fq {
 const INV: u64 = 0x8c46eb20ffffffff;
 
 /// R = 2^256 mod q
-const R: Fq = Fq([
+pub(crate) const R: Fq = Fq([
     0x5b2b3e9cfffffffd,
     0x992c350be3420567,
     0xffffffffffffffff,
@@ -451,6 +453,20 @@ impl Fq {
         let d1 = Fq([limbs[4], limbs[5], limbs[6], limbs[7]]);
         // Convert to Montgomery form
         d0.mul(R2) + d1.mul(R3)
+    }
+
+    /// Converts a 512-bit little endian integer into a `Fq` by reducing by the modulus.
+    pub fn from_bytes_wide(bytes: &[u8; 64]) -> Fq {
+        Fq::from_u512([
+            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[..8]).unwrap()),
+            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[8..16]).unwrap()),
+            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[16..24]).unwrap()),
+            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[24..32]).unwrap()),
+            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[32..40]).unwrap()),
+            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[40..48]).unwrap()),
+            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[48..56]).unwrap()),
+            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[56..64]).unwrap()),
+        ])
     }
 
     /// Converts from an integer represented in little endian
@@ -614,6 +630,44 @@ impl Fq {
         let mask = (((self.0[0] | self.0[1] | self.0[2] | self.0[3]) == 0) as u64).wrapping_sub(1);
 
         Fq([d0 & mask, d1 & mask, d2 & mask, d3 & mask])
+    }
+
+    /// copied from ristretto.rs
+    pub fn batch_invert(inputs: &mut [Fq]) -> Fq {
+        let n = inputs.len();
+        let one = Fq::one();
+
+        let mut scratch_vec = vec![one; n];
+
+        // Keep an accumulator of all of the previous products
+        let mut acc = Fq::one();
+
+        // Pass through the input vector, recording the previous
+        // products in the scratch space
+        for (input, scratch) in inputs.iter().zip(scratch_vec.iter_mut()) {
+            *scratch = acc;
+
+            acc = acc * input;
+        }
+
+        // acc is nonzero iff all inputs are nonzero
+        debug_assert!(acc != Fq::zero());
+
+        // Compute the inverse of all products
+        acc = acc.invert().unwrap();
+
+        // We need to return the product of all inverses later
+        let ret = acc;
+
+        // Pass through the vector backwards to compute the inverses
+        // in place
+        for (input, scratch) in inputs.iter_mut().rev().zip(scratch_vec.iter().rev()) {
+            let tmp = &acc * input.clone();
+            *input = &acc * scratch;
+            acc = tmp;
+        }
+
+        ret
     }
 }
 
@@ -909,6 +963,8 @@ impl FromUniformBytes<64> for Fq {
 
 pub trait Bytes {
     fn from_bytes(bytes: &[u8; 32]) -> CtOption<Fq>;
+    fn as_bytes(&self) -> [u8; 32];
+    fn to_bytes(&self) -> [u8; 32];
 }
 
 impl Bytes for Fq {
@@ -938,6 +994,106 @@ impl Bytes for Fq {
         tmp *= &R2;
 
         CtOption::new(tmp, Choice::from(is_some))
+    }
+
+    fn as_bytes(&self) -> [u8; 32] {
+        let mut s = [0u8; 32];
+
+        s[0] = (self.0[0] >> 0) as u8;
+        s[1] = (self.0[0] >> 8) as u8;
+        s[2] = (self.0[0] >> 16) as u8;
+        s[3] = (self.0[0] >> 24) as u8;
+        s[4] = (self.0[0] >> 32) as u8;
+        s[5] = (self.0[0] >> 40) as u8;
+        s[6] = (self.0[0] >> 48) as u8;
+        s[7] = (self.0[0] >> 56) as u8;
+
+        s[8] = (self.0[1] >> 0) as u8;
+        s[9] = (self.0[1] >> 8) as u8;
+        s[10] = (self.0[1] >> 16) as u8;
+        s[11] = (self.0[1] >> 24) as u8;
+        s[12] = (self.0[1] >> 32) as u8;
+        s[13] = (self.0[1] >> 40) as u8;
+        s[14] = (self.0[1] >> 48) as u8;
+        s[15] = (self.0[1] >> 56) as u8;
+
+        s[16] = (self.0[2] >> 0) as u8;
+        s[17] = (self.0[2] >> 8) as u8;
+        s[18] = (self.0[2] >> 16) as u8;
+        s[19] = (self.0[2] >> 24) as u8;
+        s[20] = (self.0[2] >> 32) as u8;
+        s[21] = (self.0[2] >> 40) as u8;
+        s[22] = (self.0[2] >> 48) as u8;
+        s[23] = (self.0[2] >> 56) as u8;
+
+        s[24] = (self.0[3] >> 0) as u8;
+        s[25] = (self.0[3] >> 8) as u8;
+        s[26] = (self.0[3] >> 16) as u8;
+        s[27] = (self.0[3] >> 24) as u8;
+        s[28] = (self.0[3] >> 32) as u8;
+        s[29] = (self.0[3] >> 40) as u8;
+        s[30] = (self.0[3] >> 48) as u8;
+        s[31] = (self.0[3] >> 56) as u8;
+
+        s
+    }
+
+    /// Converts an element of `Fq` into a byte representation in
+    /// little-endian byte order.
+    /// TODO: copied from ristretto255 code
+    fn to_bytes(&self) -> [u8; 32] {
+        // Turn into canonical form by computing
+        // (a.R) / R = a
+        let tmp = Fq::montgomery_reduce(self.0[0], self.0[1], self.0[2], self.0[3], 0, 0, 0, 0);
+
+        let mut res = [0; 32];
+        res[..8].copy_from_slice(&tmp.0[0].to_le_bytes());
+        res[8..16].copy_from_slice(&tmp.0[1].to_le_bytes());
+        res[16..24].copy_from_slice(&tmp.0[2].to_le_bytes());
+        res[24..32].copy_from_slice(&tmp.0[3].to_le_bytes());
+
+        res
+    }
+}
+
+/// Serializes bytes to human readable or compact representation.
+///
+/// Depending on whether the serializer is a human readable one or not, the bytes are either
+/// encoded as a hex string or a list of bytes.
+fn serialize_bytes<S: Serializer>(bytes: [u8; 32], s: S) -> Result<S::Ok, S::Error> {
+    if s.is_human_readable() {
+        hex::serde::serialize(bytes, s)
+    } else {
+        bytes.serialize(s)
+    }
+}
+
+/// Deserialize bytes from human readable or compact representation.
+///
+/// Depending on whether the deserializer is a human readable one or not, the bytes are either
+/// decoded from a hex string or a list of bytes.
+fn deserialize_bytes<'de, D: Deserializer<'de>>(d: D) -> Result<[u8; 32], D::Error> {
+    if d.is_human_readable() {
+        hex::serde::deserialize(d)
+    } else {
+        <[u8; 32]>::deserialize(d)
+    }
+}
+impl Serialize for Fq {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        serialize_bytes(self.to_repr(), s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Fq {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let bytes = deserialize_bytes(d)?;
+        match Fq::from_repr(bytes).into() {
+            Some(fq) => Ok(fq),
+            None => Err(D::Error::custom(
+                "deserialized bytes don't encode a Vesta field element",
+            )),
+        }
     }
 }
 

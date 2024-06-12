@@ -9,6 +9,7 @@ use super::super::math::Math;
 use super::super::scalar::Scalar;
 use super::super::transcript::ProofTranscript;
 use core::iter;
+use ff::Field;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 

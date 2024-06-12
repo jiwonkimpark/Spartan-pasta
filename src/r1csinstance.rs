@@ -1,3 +1,4 @@
+use ff::Field;
 use crate::transcript::AppendToTranscript;
 
 use super::dense_mlpoly::DensePolynomial;

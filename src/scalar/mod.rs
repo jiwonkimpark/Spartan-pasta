@@ -1,4 +1,6 @@
-mod pasta;
+use crate::scalar::pasta::fq::Bytes;
+
+pub(crate) mod pasta;
 
 pub type Scalar = pasta::fq::Fq;
 // TODO: need to change ScalarBytes

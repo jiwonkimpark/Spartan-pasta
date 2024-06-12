@@ -44,6 +44,7 @@ use scalar::Scalar;
 use serde::{Deserialize, Serialize};
 use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
+use crate::scalar::pasta::fq::Bytes;
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 pub struct ComputationCommitment {

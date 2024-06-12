@@ -577,6 +577,7 @@ impl DotProductProofLog {
 
 #[cfg(test)]
 mod tests {
+  use ff::Field;
   use super::*;
   use rand::rngs::OsRng;
   #[test]

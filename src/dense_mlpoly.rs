@@ -402,6 +402,7 @@ impl PolyEvalProof {
 
 #[cfg(test)]
 mod tests {
+  use ff::Field;
   use super::super::scalar::ScalarFromPrimitives;
   use super::*;
   use rand::rngs::OsRng;
