@@ -4,7 +4,7 @@ pub(crate) mod pasta;
 
 pub type Scalar = pasta::fq::Fq;
 // TODO: need to change ScalarBytes
-pub type ScalarBytes = curve25519_dalek::scalar::Scalar;
+pub type ScalarBytes = pasta::fq_bytes::FqBytes;
 
 pub trait ScalarFromPrimitives {
   fn to_scalar(self) -> Scalar;

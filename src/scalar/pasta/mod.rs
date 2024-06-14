@@ -1,2 +1,2 @@
 pub(crate) mod fq;
-mod fq_bytes;
+pub(crate) mod fq_bytes;
