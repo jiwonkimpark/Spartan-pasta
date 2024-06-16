@@ -128,7 +128,7 @@ impl ZKSumcheckInstanceProof {
           w.iter(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
+            .map(|pt| GroupElement(pt.decompress().unwrap()))
             .collect::<Vec<GroupElement>>(),
         )
         .compress();
@@ -512,7 +512,7 @@ impl ZKSumcheckInstanceProof {
           w.iter(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
+            .map(|pt| GroupElement(pt.decompress().unwrap()))
             .collect::<Vec<GroupElement>>(),
         )
         .compress();
@@ -702,7 +702,7 @@ impl ZKSumcheckInstanceProof {
           w.iter(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
+            .map(|pt| GroupElement(pt.decompress().unwrap()))
             .collect::<Vec<GroupElement>>(),
         )
         .compress();

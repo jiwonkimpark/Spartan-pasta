@@ -94,6 +94,14 @@ impl CompressedPoint {
         }
     }
 
+    pub fn to_bytes(&self) -> [u8; 32] {
+        let mut bytes: [u8; 32] = [0u8; 32];
+
+        bytes.copy_from_slice(&self.0[1..33]);
+
+        bytes
+    }
+
     pub const fn as_bytes(&self) -> &[u8; 33] {
         &self.0
     }

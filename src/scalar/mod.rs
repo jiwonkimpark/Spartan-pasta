@@ -1,8 +1,8 @@
-use crate::scalar::pasta::fq::Bytes;
+use crate::scalar::pasta::fq::{Bytes, Fq};
 
 pub(crate) mod pasta;
 
-pub type Scalar = pasta::fq::Fq;
+pub type Scalar = Fq;
 // TODO: need to change ScalarBytes
 pub type ScalarBytes = pasta::fq_bytes::FqBytes;
 

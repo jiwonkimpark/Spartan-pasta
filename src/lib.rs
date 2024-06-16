@@ -32,7 +32,6 @@ mod transcript;
 mod unipoly;
 mod arithmetic;
 mod compression;
-
 use core::cmp::max;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;

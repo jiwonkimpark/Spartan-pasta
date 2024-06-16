@@ -33,6 +33,8 @@ ff = { version = "0.13.0" }
 static_assertions = "1.1.0"
 hex = { version = "0.4.3", features = ["serde"] }
 pasta_curves = { version = "0.5.1" }
+group = { version = "0.13", default-features = false }
+
 
 [dev-dependencies]
 criterion = "0.3.1"

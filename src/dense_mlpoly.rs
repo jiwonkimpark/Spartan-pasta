@@ -376,7 +376,7 @@ impl PolyEvalProof {
     let (L, R) = eq.compute_factored_evals();
 
     // compute a weighted sum of commitments and L
-    let C_decompressed = comm.C.iter().map(|pt| pt.decompress().unwrap());
+    let C_decompressed = comm.C.iter().map(|pt| GroupElement(pt.decompress().unwrap()));
 
     let C_LZ = GroupElement::vartime_multiscalar_mul(&L, C_decompressed).compress();
 

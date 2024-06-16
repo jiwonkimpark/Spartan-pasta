@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, CompressedGroupExt};
+use super::group::{CompressedGroup, CompressedGroupExt, GroupElement};
 use super::math::Math;
 use super::random::RandomTape;
 use super::scalar::Scalar;
@@ -64,7 +64,7 @@ impl KnowledgeProof {
     let c = transcript.challenge_scalar(b"c");
 
     let lhs = self.z1.commit(&self.z2, gens_n).compress();
-    let rhs = (c * C.unpack()? + self.alpha.unpack()?).compress();
+    let rhs = GroupElement(c * C.unpack()? + self.alpha.unpack()?).compress();
 
     if lhs == rhs {
       Ok(())
@@ -130,7 +130,7 @@ impl EqualityProof {
     let c = transcript.challenge_scalar(b"c");
     let rhs = {
       let C = C1.unpack()? - C2.unpack()?;
-      (c * C + self.alpha.unpack()?).compress()
+      GroupElement(c * C + self.alpha.unpack()?).compress()
     };
 
     let lhs = (self.z * gens_n.h).compress();
@@ -199,7 +199,7 @@ impl ProductProof {
     let delta = {
       let gens_X = &MultiCommitGens {
         n: 1,
-        G: vec![X.decompress().unwrap()],
+        G: vec![GroupElement(X.decompress().unwrap())],
         h: gens_n.h,
       };
       b3.commit(&b5, gens_X).compress()
@@ -236,7 +236,7 @@ impl ProductProof {
     z1: &Scalar,
     z2: &Scalar,
   ) -> bool {
-    let lhs = (P.decompress().unwrap() + c * X.decompress().unwrap()).compress();
+    let lhs = GroupElement(P.decompress().unwrap() + c * X.decompress().unwrap()).compress();
     let rhs = z1.commit(z2, gens_n).compress();
 
     lhs == rhs
@@ -275,7 +275,7 @@ impl ProductProof {
         &c,
         &MultiCommitGens {
           n: 1,
-          G: vec![X.unpack()?],
+          G: vec![GroupElement(X.unpack()?)],
           h: gens_n.h,
         },
         &z3,
@@ -391,10 +391,10 @@ impl DotProductProof {
     let c = transcript.challenge_scalar(b"c");
 
     let mut result =
-      c * Cx.unpack()? + self.delta.unpack()? == self.z.commit(&self.z_delta, gens_n);
+      c * Cx.unpack()? + self.delta.unpack()? == self.z.commit(&self.z_delta, gens_n).0;
 
     let dotproduct_z_a = DotProductProof::compute_dotproduct(&self.z, a);
-    result &= c * Cy.unpack()? + self.beta.unpack()? == dotproduct_z_a.commit(&self.z_beta, gens_1);
+    result &= c * Cy.unpack()? + self.beta.unpack()? == dotproduct_z_a.commit(&self.z_beta, gens_1).0;
 
     if result {
       Ok(())
@@ -544,7 +544,7 @@ impl DotProductProofLog {
     let r = transcript.challenge_scalar(b"r");
     let gens_1_scaled = gens.gens_1.scale(&r);
 
-    let Gamma = Cx.unpack()? + r * Cy.unpack()?;
+    let Gamma = GroupElement(Cx.unpack()? + r * Cy.unpack()?);
 
     let (g_hat, Gamma_hat, a_hat) =
       self
@@ -562,7 +562,7 @@ impl DotProductProofLog {
     let z1_s = &self.z1;
     let z2_s = &self.z2;
 
-    let lhs = ((Gamma_hat * c_s + beta_s) * a_hat_s + delta_s).compress();
+    let lhs = ((Gamma_hat * c_s + GroupElement(beta_s)) * a_hat_s + GroupElement(delta_s)).compress();
     let rhs = ((g_hat + gens_1_scaled.G[0] * a_hat_s) * z1_s + gens_1_scaled.h * z2_s).compress();
 
     assert_eq!(lhs, rhs);

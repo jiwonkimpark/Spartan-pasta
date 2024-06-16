@@ -205,11 +205,15 @@ impl BulletReductionProof {
       .map(|p| p.decompress().ok_or(ProofVerifyError::InternalError))
       .collect::<Result<Vec<_>, _>>()?;
 
+    let Ls_group_element: Vec<GroupElement> = Ls.iter().map(|ep| GroupElement(*ep)).collect();
+
     let Rs = self
       .R_vec
       .iter()
       .map(|p| p.decompress().ok_or(ProofVerifyError::InternalError))
       .collect::<Result<Vec<_>, _>>()?;
+
+    let Rs_group_element: Vec<GroupElement> = Rs.iter().map(|ep| GroupElement(*ep)).collect();
 
     let G_hat = GroupElement::vartime_multiscalar_mul(s.iter(), G.iter());
     let a_hat = inner_product(a, &s);
@@ -219,7 +223,7 @@ impl BulletReductionProof {
         .iter()
         .chain(u_inv_sq.iter())
         .chain(iter::once(&Scalar::one())),
-      Ls.iter().chain(Rs.iter()).chain(iter::once(Gamma)),
+      Ls_group_element.iter().chain(Rs_group_element.iter()).chain(iter::once(Gamma)),
     );
 
     Ok((G_hat, Gamma_hat, a_hat))
