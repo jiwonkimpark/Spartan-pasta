@@ -154,5 +154,50 @@ impl<'de> Deserialize<'de> for CompressedPoint {
     }
 }
 
-// TODO: need to fix this to a real value
-pub const PALLAS_GENERATOR_COMPRESSED: CompressedPoint = CompressedPoint([0u8; 33]); // Ep::generator() and compress
+pub const PALLAS_GENERATOR_COMPRESSED: CompressedPoint = {
+    let point: [u8; 33] = [2, 0, 0, 0, 0, 237, 48, 45, 153, 27, 249, 76, 9, 252, 152, 70, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64];
+    CompressedPoint(point)
+};
+
+#[cfg(test)]
+mod tests {
+    use group::Group;
+    use pasta_curves::Ep;
+    use crate::compression::PALLAS_GENERATOR_COMPRESSED;
+    use crate::group::GroupElement;
+
+    #[test]
+    fn compress_generator() {
+        let generator = Ep::generator();
+        let generator_group_element = GroupElement(generator);
+        let compressed = generator_group_element.compress();
+
+        println!("{:?}", compressed.0);
+    }
+
+    #[test]
+    fn test_decompress() {
+        let decompressed = PALLAS_GENERATOR_COMPRESSED.decompress().unwrap();
+        let generator = Ep::generator();
+        let generator_group_element = GroupElement(generator);
+
+        assert_eq!(generator, decompressed);
+        assert_eq!(generator_group_element, GroupElement(decompressed));
+    }
+
+    #[test]
+    fn test_to_bytes() {
+        let compressed = PALLAS_GENERATOR_COMPRESSED;
+        let x_coordinates = compressed.to_bytes();
+
+        assert_eq!(x_coordinates, compressed.0[1..33])
+    }
+
+    #[test]
+    fn test_as_bytes() {
+        let compressed = PALLAS_GENERATOR_COMPRESSED;
+        let result = compressed.as_bytes();
+
+        assert_eq!(compressed.0, *result)
+    }
+}
