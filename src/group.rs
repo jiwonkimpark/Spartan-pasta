@@ -42,12 +42,6 @@ impl GroupElement {
     }
 }
 
-// impl Borrow<GroupElement> for Ep {
-//     fn borrow(&self) -> &GroupElement {
-//         &GroupElement::from(self)
-//     }
-// }
-
 pub trait CompressedGroupExt {
     type Group;
     fn unpack(&self) -> Result<Self::Group, ProofVerifyError>;
@@ -261,10 +255,6 @@ pub trait VartimeMultiscalarMul {
 impl VartimeMultiscalarMul for GroupElement {
     type Scalar = Scalar;
 
-    // TODO: make borrow I and J
-    // where
-    // I::Item: Borrow<Self::Scalar>,
-    // J::Item: Borrow<Self>,
     fn vartime_multiscalar_mul<I, J>(scalars: I, points: J) -> Self
         where
             I: IntoIterator,
@@ -294,12 +284,52 @@ impl VartimeMultiscalarMul for GroupElement {
             let mul = GroupElement(points[i]) * scalars[i];
             sum = sum + mul;
         }
-        //
-        // for (point, scalar) in points.into_iter().zip(scalars.into_iter()) {
-        //     let mul = point * scalar;
-        //     sum = sum + mul;
-        // }
 
         sum
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use group::Group;
+    use pasta_curves::Ep;
+    use crate::group::{GroupElement, VartimeMultiscalarMul};
+    use crate::scalar::Scalar;
+
+    #[test]
+    fn test_vartime_multiscalr_mul() {
+        let generator = Ep::generator();
+        let identity = Ep::identity();
+        let mut points: Vec<GroupElement> = Vec::new();
+        points.push(GroupElement(generator));
+        points.push(GroupElement(identity));
+
+        // test 1: 1 * Generator + 0 * Identity should be Generator
+        let one = Scalar::one();
+        let zero = Scalar::zero();
+        let mut scalars1: Vec<Scalar> = Vec::new();
+        scalars1.push(one);
+        scalars1.push(zero);
+
+        let result = GroupElement::vartime_multiscalar_mul(scalars1, points.clone());
+        assert_eq!(result, GroupElement(generator));
+
+        // test 2: 2 * Generator + 2 * Identity should be 2 * Generator
+        let two = one + one;
+        let mut scalars2: Vec<Scalar> = Vec::new();
+        scalars2.push(two);
+        scalars2.push(two);
+
+        let expected = two * generator;
+        let result = GroupElement::vartime_multiscalar_mul(scalars2, points.clone());
+        assert_eq!(result, GroupElement(expected));
+
+        // test 3: 0 * Generator + 2 * Identity should be Identity
+        let mut scalars3: Vec<Scalar> = Vec::new();
+        scalars3.push(zero);
+        scalars3.push(two);
+
+        let result = GroupElement::vartime_multiscalar_mul(scalars3, points.clone());
+        assert_eq!(result, GroupElement(identity));
     }
 }
