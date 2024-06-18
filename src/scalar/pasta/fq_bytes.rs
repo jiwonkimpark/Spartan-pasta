@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::ops::{Add, AddAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
 use ff::{Field, FromUniformBytes};
+use rand_core::CryptoRngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 use crate::scalar::pasta::fq::{Bytes, Fq, R};
 
@@ -339,18 +340,18 @@ impl FqBytes {
         bytes: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
     };
 
-    // #[cfg(any(test, feature = "rand_core"))]
-    // /// Return a `Scalar` chosen uniformly at random using a user-provided RNG.
-    // ///
-    // /// # Inputs
-    // ///
-    // /// * `rng`: any RNG which implements `CryptoRngCore`
-    // ///   (i.e. `CryptoRng` + `RngCore`) interface.
-    // pub fn random<R: CryptoRngCore + ?Sized>(rng: &mut R) -> Self {
-    //     let mut bytes = [0u8; 64];
-    //     rng.fill_bytes(&mut bytes);
-    //     FqBytes::from_bytes_mod_order_wide(&bytes)
-    // }
+    #[cfg(any(test, feature = "rand_core"))]
+    /// Return a `Scalar` chosen uniformly at random using a user-provided RNG.
+    ///
+    /// # Inputs
+    ///
+    /// * `rng`: any RNG which implements `CryptoRngCore`
+    ///   (i.e. `CryptoRng` + `RngCore`) interface.
+    pub fn random<R: CryptoRngCore + ?Sized>(rng: &mut R) -> Self {
+        let mut bytes = [0u8; 64];
+        rng.fill_bytes(&mut bytes);
+        FqBytes::from_bytes_mod_order_wide(&bytes)
+    }
 
     /// Convert this `FqBytes` to its underlying sequence of bytes.
     pub const fn to_bytes(&self) -> [u8; 32] {
@@ -387,6 +388,7 @@ impl FqBytes {
     /// Reduce this `FqBytes` modulo \\(\q\\).
     #[allow(non_snake_case)]
     fn reduce(&self) -> FqBytes {
+        // TODO: need to check if
         let x = self.unpack();
         let reduced = UnpackedFqBytes::mul(&x, &R); // since Fq::mul multiplies and converts to montgomery form.
         // let xR = UnpackedFqBytes::mul_internal(&x, &constants::R);
@@ -434,16 +436,7 @@ pub(crate) mod test {
 
     #[test]
     fn test_to_bytes() {
-        let basepoint_order_bytes = BASEPOINT_ORDER.bytes;
-        let result = FqBytes::from_bytes_mod_order(basepoint_order_bytes);
-        println!("{:?}", result.bytes);
 
-        let mut one = [0u8; 32];
-        one[0] = 1u8;
-        let one_bytes = FqBytes { bytes: one };
-        println!("{:?}", one_bytes.bytes);
-        let mod_order_result = FqBytes::from_bytes_mod_order(one_bytes.bytes);
-        println!("{:?}", mod_order_result.bytes)
     }
 
     #[test]
