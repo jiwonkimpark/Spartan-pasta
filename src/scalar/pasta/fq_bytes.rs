@@ -5,7 +5,7 @@ use rand_core::CryptoRngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 use crate::scalar::pasta::fq::{Bytes, Fq, R};
 
-type UnpackedFqBytes = Fq;
+type UnpackedFqBytes = Scalar52;
 
 #[derive(Copy, Clone, Hash)]
 pub struct FqBytes {
@@ -31,7 +31,7 @@ impl FqBytes {
     /// Construct a `FqBytes` by reducing a 512-bit little-endian integer
     /// modulo the group order \\( \q \\).
     pub fn from_bytes_mod_order_wide(input: &[u8; 64]) -> FqBytes {
-        UnpackedFqBytes::from_uniform_bytes(input).pack()
+        UnpackedFqBytes::from_bytes_wide(input).pack()
     }
 
     /// Attempt to construct a `FqBytes` from a canonical byte representation.
@@ -248,7 +248,7 @@ impl<'a> Neg for &'a FqBytes {
     #[allow(non_snake_case)]
     fn neg(self) -> FqBytes {
         // TODO: mul_internal is not implemented in Fq
-        let reduced = UnpackedFqBytes::mul(&self.unpack(), &R);
+        let reduced = UnpackedFqBytes::mul(&self.unpack(), &scalar52::R);
         // let self_R = UnpackedFqBytes::mul_internal(&self.unpack(), &constants::R);
         // let self_mod_l = UnpackedFqBytes::montgomery_reduce(&self_R);
         UnpackedFqBytes::sub(&UnpackedFqBytes::ZERO, &reduced).pack()
@@ -277,6 +277,8 @@ impl ConditionallySelectable for FqBytes {
 use serde::de::Visitor;
 // #[cfg(feature = "serde")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
+use crate::scalar::pasta::scalar52;
+use crate::scalar::pasta::scalar52::Scalar52;
 
 // #[cfg(feature = "serde")]
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
@@ -376,12 +378,12 @@ impl FqBytes {
     ///
     /// The multiplicative inverse of this `FqBytes`.
     pub fn invert(&self) -> FqBytes {
-        self.unpack().invert().unwrap().pack()
+        self.unpack().invert().pack()
     }
 
     /// Unpack this `FqBytes` to an `UnpackedFqBytes` for faster arithmetic.
     pub(crate) fn unpack(&self) -> UnpackedFqBytes {
-        UnpackedFqBytes::from_bytes(&self.bytes).unwrap()
+        UnpackedFqBytes::from_bytes(&self.bytes)
     }
 
 
@@ -390,10 +392,9 @@ impl FqBytes {
     fn reduce(&self) -> FqBytes {
         // TODO: need to check if
         let x = self.unpack();
-        let reduced = UnpackedFqBytes::mul(&x, &R); // since Fq::mul multiplies and converts to montgomery form.
-        // let xR = UnpackedFqBytes::mul_internal(&x, &constants::R);
-        // let x_mod_l = UnpackedFqBytes::montgomery_reduce(&xR); // xRR^{-1} mod l = x mod l
-        reduced.pack()
+        let xR = UnpackedFqBytes::mul_internal(&x, &scalar52::R); // since Fq::mul multiplies and converts to montgomery form.
+        let x_mod_l = UnpackedFqBytes::montgomery_reduce(&xR); // xRR^{-1} mod l = x mod l
+        x_mod_l.pack()
     }
 
 
@@ -410,6 +411,68 @@ impl UnpackedFqBytes {
         FqBytes {
             bytes: self.as_bytes(),
         }
+    }
+
+    #[rustfmt::skip] // keep alignment of addition chain and squarings
+    #[allow(clippy::just_underscores_and_digits)]
+    pub fn montgomery_invert(&self) -> UnpackedFqBytes {
+        // Uses the addition chain from
+        // https://briansmith.org/ecc-inversion-addition-chains-01#curve25519_scalar_inversion
+        let    _1 = *self;
+        let   _10 = _1.montgomery_square();
+        let  _100 = _10.montgomery_square();
+        let   _11 = UnpackedFqBytes::montgomery_mul(&_10,     &_1);
+        let  _101 = UnpackedFqBytes::montgomery_mul(&_10,    &_11);
+        let  _111 = UnpackedFqBytes::montgomery_mul(&_10,   &_101);
+        let _1001 = UnpackedFqBytes::montgomery_mul(&_10,   &_111);
+        let _1011 = UnpackedFqBytes::montgomery_mul(&_10,  &_1001);
+        let _1111 = UnpackedFqBytes::montgomery_mul(&_100, &_1011);
+
+        // _10000
+        let mut y = UnpackedFqBytes::montgomery_mul(&_1111, &_1);
+
+        #[inline]
+        fn square_multiply(y: &mut UnpackedFqBytes, squarings: usize, x: &UnpackedFqBytes) {
+            for _ in 0..squarings {
+                *y = y.montgomery_square();
+            }
+            *y = UnpackedFqBytes::montgomery_mul(y, x);
+        }
+
+        square_multiply(&mut y, 123 + 3, &_101);
+        square_multiply(&mut y,   2 + 2, &_11);
+        square_multiply(&mut y,   1 + 4, &_1111);
+        square_multiply(&mut y,   1 + 4, &_1111);
+        square_multiply(&mut y,       4, &_1001);
+        square_multiply(&mut y,       2, &_11);
+        square_multiply(&mut y,   1 + 4, &_1111);
+        square_multiply(&mut y,   1 + 3, &_101);
+        square_multiply(&mut y,   3 + 3, &_101);
+        square_multiply(&mut y,       3, &_111);
+        square_multiply(&mut y,   1 + 4, &_1111);
+        square_multiply(&mut y,   2 + 3, &_111);
+        square_multiply(&mut y,   2 + 2, &_11);
+        square_multiply(&mut y,   1 + 4, &_1011);
+        square_multiply(&mut y,   2 + 4, &_1011);
+        square_multiply(&mut y,   6 + 4, &_1001);
+        square_multiply(&mut y,   2 + 2, &_11);
+        square_multiply(&mut y,   3 + 2, &_11);
+        square_multiply(&mut y,   3 + 2, &_11);
+        square_multiply(&mut y,   1 + 4, &_1001);
+        square_multiply(&mut y,   1 + 3, &_111);
+        square_multiply(&mut y,   2 + 4, &_1111);
+        square_multiply(&mut y,   1 + 4, &_1011);
+        square_multiply(&mut y,       3, &_101);
+        square_multiply(&mut y,   2 + 4, &_1111);
+        square_multiply(&mut y,       3, &_101);
+        square_multiply(&mut y,   1 + 2, &_11);
+
+        y
+    }
+
+    /// Inverts an UnpackedScalar not in Montgomery form.
+    pub fn invert(&self) -> UnpackedFqBytes {
+        self.as_montgomery().montgomery_invert().from_montgomery()
     }
 }
 
@@ -436,7 +499,14 @@ pub(crate) mod test {
 
     #[test]
     fn test_to_bytes() {
-
+        let modulus = FqBytes {
+            bytes: [
+                1, 0, 0, 0, 33, 235, 70, 140, 221, 168, 148, 9, 252, 152, 70, 34, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64
+            ]
+        };
+        let reduced = FqBytes::from_bytes_mod_order(modulus.bytes);
+        println!("{:?}", reduced.bytes);
     }
 
     #[test]

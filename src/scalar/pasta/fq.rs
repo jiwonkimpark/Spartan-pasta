@@ -1119,162 +1119,246 @@ impl ec_gpu::GpuField for Fq {
     }
 }
 
-#[test]
-fn test_inv() {
-    // Compute -(r^{-1} mod 2^64) mod 2^64 by exponentiating
-    // by totient(2**64) - 1
+#[cfg(test)]
+mod tests {
+    use ff::{Field, PrimeField, WithSmallOrderMulGroup};
+    use crate::arithmetic::fields::SqrtTableHelpers;
+    use crate::scalar::pasta::fq::{Bytes, Fq, GENERATOR, INV, MODULUS, R2, T_MINUS1_OVER2};
 
-    let mut inv = 1u64;
-    for _ in 0..63 {
-        inv = inv.wrapping_mul(inv);
-        inv = inv.wrapping_mul(MODULUS.0[0]);
+    #[test]
+    fn test_binops_add() {
+        let zero = Fq::ZERO;
+        let one = Fq::ONE;
+        let result = zero + one;
+        assert_eq!(one, result);
     }
-    inv = inv.wrapping_neg();
 
-    assert_eq!(inv, INV);
-}
-
-#[test]
-fn test_sqrt() {
-    // NB: TWO_INV is standing in as a "random" field element
-    let v = (Fq::TWO_INV).square().sqrt().unwrap();
-    assert!(v == Fq::TWO_INV || (-v) == Fq::TWO_INV);
-}
-
-#[test]
-fn test_sqrt_32bit_overflow() {
-    assert!((Fq::from(5)).sqrt().is_none().unwrap_u8() == 1);
-}
-
-#[test]
-fn test_pow_by_t_minus1_over2() {
-    // NB: TWO_INV is standing in as a "random" field element
-    let v = (Fq::TWO_INV).pow_by_t_minus1_over2();
-    assert!(v == ff::Field::pow_vartime(&Fq::TWO_INV, &T_MINUS1_OVER2));
-}
-
-#[test]
-fn test_sqrt_ratio_and_alt() {
-    // (true, sqrt(num/div)), if num and div are nonzero and num/div is a square in the field
-    let num = (Fq::TWO_INV).square();
-    let div = Fq::from(25);
-    let div_inverse = div.invert().unwrap();
-    let expected = Fq::TWO_INV * Fq::from(5).invert().unwrap();
-    let (is_square, v) = Fq::sqrt_ratio(&num, &div);
-    assert!(bool::from(is_square));
-    assert!(v == expected || (-v) == expected);
-
-    let (is_square_alt, v_alt) = Fq::sqrt_alt(&(num * div_inverse));
-    assert!(bool::from(is_square_alt));
-    assert!(v_alt == v);
-
-    // (false, sqrt(ROOT_OF_UNITY * num/div)), if num and div are nonzero and num/div is a nonsquare in the field
-    let num = num * Fq::ROOT_OF_UNITY;
-    let expected = Fq::TWO_INV * Fq::ROOT_OF_UNITY * Fq::from(5).invert().unwrap();
-    let (is_square, v) = Fq::sqrt_ratio(&num, &div);
-    assert!(!bool::from(is_square));
-    assert!(v == expected || (-v) == expected);
-
-    let (is_square_alt, v_alt) = Fq::sqrt_alt(&(num * div_inverse));
-    assert!(!bool::from(is_square_alt));
-    assert!(v_alt == v);
-
-    // (true, 0), if num is zero
-    let num = Fq::zero();
-    let expected = Fq::zero();
-    let (is_square, v) = Fq::sqrt_ratio(&num, &div);
-    assert!(bool::from(is_square));
-    assert!(v == expected);
-
-    let (is_square_alt, v_alt) = Fq::sqrt_alt(&(num * div_inverse));
-    assert!(bool::from(is_square_alt));
-    assert!(v_alt == v);
-
-    // (false, 0), if num is nonzero and div is zero
-    let num = (Fq::TWO_INV).square();
-    let div = Fq::zero();
-    let expected = Fq::zero();
-    let (is_square, v) = Fq::sqrt_ratio(&num, &div);
-    assert!(!bool::from(is_square));
-    assert!(v == expected);
-}
-
-#[test]
-fn test_zeta() {
-    assert_eq!(
-        format!("{:?}", Fq::ZETA),
-        "0x06819a58283e528e511db4d81cf70f5a0fed467d47c033af2aa9d2e050aa0e4f"
-    );
-    let a = Fq::ZETA;
-    assert!(a != Fq::one());
-    let b = a * a;
-    assert!(b != Fq::one());
-    let c = b * a;
-    assert!(c == Fq::one());
-}
-
-#[test]
-fn test_root_of_unity() {
-    assert_eq!(
-        Fq::ROOT_OF_UNITY.pow_vartime(&[1 << Fq::S, 0, 0, 0]),
-        Fq::one()
-    );
-}
-
-#[test]
-fn test_inv_root_of_unity() {
-    assert_eq!(Fq::ROOT_OF_UNITY_INV, Fq::ROOT_OF_UNITY.invert().unwrap());
-}
-
-#[test]
-fn test_inv_2() {
-    assert_eq!(Fq::TWO_INV, Fq::from(2).invert().unwrap());
-}
-
-#[test]
-fn test_delta() {
-    assert_eq!(Fq::DELTA, GENERATOR.pow(&[1u64 << Fq::S, 0, 0, 0]));
-    assert_eq!(
-        Fq::DELTA,
-        Fq::MULTIPLICATIVE_GENERATOR.pow(&[1u64 << Fq::S, 0, 0, 0])
-    );
-}
-
-#[cfg(not(target_pointer_width = "64"))]
-#[test]
-fn consistent_modulus_limbs() {
-    for (a, &b) in MODULUS
-        .0
-        .iter()
-        .flat_map(|&limb| {
-            Some(limb as u32)
-                .into_iter()
-                .chain(Some((limb >> 32) as u32))
-        })
-        .zip(MODULUS_LIMBS_32.iter())
-    {
-        assert_eq!(a, b);
+    #[test]
+    fn test_binops_sub() {
+        let zero = Fq::ZERO;
+        let one = Fq::ONE;
+        let result = zero - one;
+        assert_eq!(-one, result);
     }
-}
 
-#[test]
-fn test_from_u512() {
-    assert_eq!(
-        Fq::from_raw([
-            0xe22bd0d1b22cc43e,
-            0x6b84e5b52490a7c8,
-            0x264262941ac9e229,
-            0x27dcfdf361ce4254
-        ]),
-        Fq::from_u512([
-            0x64a80cce0b5a2369,
-            0x84f2ef0501bc783c,
-            0x696e5e63c86bbbde,
-            0x924072f52dc6cc62,
-            0x8288a507c8d61128,
-            0x3b2efb1ef697e3fe,
-            0x75a4998d06855f27,
-            0x52ea589e69712cc0
+    #[test]
+    fn test_binops_mul() {
+        let zero = Fq::ZERO;
+        let one = Fq::ONE;
+        let result = zero * one;
+        assert_eq!(zero, result);
+    }
+
+    #[test]
+    fn test_from_bytes() {
+        assert_eq!(
+            Fq::from_bytes(&[
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
+            ])
+                .unwrap(),
+            Fq::zero()
+        );
+
+        assert_eq!(
+            Fq::from_bytes(&[
+                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
+            ])
+                .unwrap(),
+            Fq::one()
+        );
+
+        assert_eq!(
+            Fq::from_bytes(&[
+                253, 255, 255, 255, 156, 62, 43, 91, 103, 5, 66, 227, 11, 53, 44, 153, 255, 255,
+                255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 63]
+            )
+                .unwrap(),
+            R2
+        );
+
+        // -1 should work
+        assert_eq!(Fq::from_bytes(&[
+            0, 0, 0, 0, 33, 235, 70, 140, 221, 168, 148, 9, 252, 152, 70, 34, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64
         ])
-    );
+                       .is_some()
+                       .unwrap_u8(), 1);
+
+        // modulus is invalid
+        assert_eq!(Fq::from_bytes(&[
+            1, 0, 0, 0, 33, 235, 70, 140, 221, 168, 148, 9, 252, 152, 70, 34, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64
+        ])
+                       .is_none()
+                       .unwrap_u8(), 1);
+
+        // Anything larger than the modulus is invalid
+        assert_eq!(Fq::from_bytes(&[
+            2, 0, 0, 0, 33, 235, 70, 140, 221, 168, 148, 9, 252, 152, 70, 34, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64
+        ])
+                       .is_none()
+                       .unwrap_u8(), 1);
+    }
+    #[test]
+    fn test_inv() {
+        // Compute -(r^{-1} mod 2^64) mod 2^64 by exponentiating
+        // by totient(2**64) - 1
+
+        let mut inv = 1u64;
+        for _ in 0..63 {
+            inv = inv.wrapping_mul(inv);
+            inv = inv.wrapping_mul(MODULUS.0[0]);
+        }
+        inv = inv.wrapping_neg();
+
+        assert_eq!(inv, INV);
+    }
+
+    #[test]
+    fn test_sqrt() {
+        // NB: TWO_INV is standing in as a "random" field element
+        let v = (Fq::TWO_INV).square().sqrt().unwrap();
+        assert!(v == Fq::TWO_INV || (-v) == Fq::TWO_INV);
+    }
+
+    #[test]
+    fn test_sqrt_32bit_overflow() {
+        assert!((Fq::from(5)).sqrt().is_none().unwrap_u8() == 1);
+    }
+
+    #[test]
+    fn test_pow_by_t_minus1_over2() {
+        // NB: TWO_INV is standing in as a "random" field element
+        let v = (Fq::TWO_INV).pow_by_t_minus1_over2();
+        assert!(v == ff::Field::pow_vartime(&Fq::TWO_INV, &T_MINUS1_OVER2));
+    }
+
+    #[test]
+    fn test_sqrt_ratio_and_alt() {
+        // (true, sqrt(num/div)), if num and div are nonzero and num/div is a square in the field
+        let num = (Fq::TWO_INV).square();
+        let div = Fq::from(25);
+        let div_inverse = div.invert().unwrap();
+        let expected = Fq::TWO_INV * Fq::from(5).invert().unwrap();
+        let (is_square, v) = Fq::sqrt_ratio(&num, &div);
+        assert!(bool::from(is_square));
+        assert!(v == expected || (-v) == expected);
+
+        let (is_square_alt, v_alt) = Fq::sqrt_alt(&(num * div_inverse));
+        assert!(bool::from(is_square_alt));
+        assert!(v_alt == v);
+
+        // (false, sqrt(ROOT_OF_UNITY * num/div)), if num and div are nonzero and num/div is a nonsquare in the field
+        let num = num * Fq::ROOT_OF_UNITY;
+        let expected = Fq::TWO_INV * Fq::ROOT_OF_UNITY * Fq::from(5).invert().unwrap();
+        let (is_square, v) = Fq::sqrt_ratio(&num, &div);
+        assert!(!bool::from(is_square));
+        assert!(v == expected || (-v) == expected);
+
+        let (is_square_alt, v_alt) = Fq::sqrt_alt(&(num * div_inverse));
+        assert!(!bool::from(is_square_alt));
+        assert!(v_alt == v);
+
+        // (true, 0), if num is zero
+        let num = Fq::zero();
+        let expected = Fq::zero();
+        let (is_square, v) = Fq::sqrt_ratio(&num, &div);
+        assert!(bool::from(is_square));
+        assert!(v == expected);
+
+        let (is_square_alt, v_alt) = Fq::sqrt_alt(&(num * div_inverse));
+        assert!(bool::from(is_square_alt));
+        assert!(v_alt == v);
+
+        // (false, 0), if num is nonzero and div is zero
+        let num = (Fq::TWO_INV).square();
+        let div = Fq::zero();
+        let expected = Fq::zero();
+        let (is_square, v) = Fq::sqrt_ratio(&num, &div);
+        assert!(!bool::from(is_square));
+        assert!(v == expected);
+    }
+
+    #[test]
+    fn test_zeta() {
+        assert_eq!(
+            format!("{:?}", Fq::ZETA),
+            "0x06819a58283e528e511db4d81cf70f5a0fed467d47c033af2aa9d2e050aa0e4f"
+        );
+        let a = Fq::ZETA;
+        assert!(a != Fq::one());
+        let b = a * a;
+        assert!(b != Fq::one());
+        let c = b * a;
+        assert!(c == Fq::one());
+    }
+
+    #[test]
+    fn test_root_of_unity() {
+        assert_eq!(
+            Fq::ROOT_OF_UNITY.pow_vartime(&[1 << Fq::S, 0, 0, 0]),
+            Fq::one()
+        );
+    }
+
+    #[test]
+    fn test_inv_root_of_unity() {
+        assert_eq!(Fq::ROOT_OF_UNITY_INV, Fq::ROOT_OF_UNITY.invert().unwrap());
+    }
+
+    #[test]
+    fn test_inv_2() {
+        assert_eq!(Fq::TWO_INV, Fq::from(2).invert().unwrap());
+    }
+
+    #[test]
+    fn test_delta() {
+        assert_eq!(Fq::DELTA, GENERATOR.pow(&[1u64 << Fq::S, 0, 0, 0]));
+        assert_eq!(
+            Fq::DELTA,
+            Fq::MULTIPLICATIVE_GENERATOR.pow(&[1u64 << Fq::S, 0, 0, 0])
+        );
+    }
+
+    #[cfg(not(target_pointer_width = "64"))]
+    #[test]
+    fn consistent_modulus_limbs() {
+        for (a, &b) in MODULUS
+            .0
+            .iter()
+            .flat_map(|&limb| {
+                Some(limb as u32)
+                    .into_iter()
+                    .chain(Some((limb >> 32) as u32))
+            })
+            .zip(MODULUS_LIMBS_32.iter())
+        {
+            assert_eq!(a, b);
+        }
+    }
+
+    #[test]
+    fn test_from_u512() {
+        assert_eq!(
+            Fq::from_raw([
+                0xe22bd0d1b22cc43e,
+                0x6b84e5b52490a7c8,
+                0x264262941ac9e229,
+                0x27dcfdf361ce4254
+            ]),
+            Fq::from_u512([
+                0x64a80cce0b5a2369,
+                0x84f2ef0501bc783c,
+                0x696e5e63c86bbbde,
+                0x924072f52dc6cc62,
+                0x8288a507c8d61128,
+                0x3b2efb1ef697e3fe,
+                0x75a4998d06855f27,
+                0x52ea589e69712cc0
+            ])
+        );
+    }
 }

@@ -1,10 +1,10 @@
 use crate::scalar::pasta::fq::{Bytes, Fq};
+use crate::scalar::pasta::fq_bytes::FqBytes;
 
 pub(crate) mod pasta;
 
 pub type Scalar = Fq;
-// TODO: need to change ScalarBytes
-pub type ScalarBytes = pasta::fq_bytes::FqBytes;
+pub type ScalarBytes = FqBytes;
 
 pub trait ScalarFromPrimitives {
   fn to_scalar(self) -> Scalar;

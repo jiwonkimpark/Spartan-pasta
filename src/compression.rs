@@ -161,8 +161,8 @@ pub const PALLAS_GENERATOR_COMPRESSED: CompressedPoint = {
 
 #[cfg(test)]
 mod tests {
-    use group::Group;
     use pasta_curves::Ep;
+    use pasta_curves::group::Group;
     use crate::compression::PALLAS_GENERATOR_COMPRESSED;
     use crate::group::GroupElement;
 

@@ -1,5 +1,5 @@
 use super::errors::ProofVerifyError;
-use super::scalar::{Scalar};
+use super::scalar::{Scalar, ScalarBytesFromScalar};
 use core::ops::{Mul, MulAssign};
 use std::borrow::Borrow;
 use std::ops::{Add, Sub};
@@ -92,17 +92,6 @@ impl<'a, 'b> Mul<&'b Ep> for &'a Fq {
     type Output = Ep;
 
     fn mul(self, rhs: &'b Ep) -> Self::Output {
-        // This is a simple double-and-add implementation of point
-        // multiplication, moving from most significant to least
-        // significant bit of the scalar.
-        //
-        // We don't use `PrimeFieldBits::.to_le_bits` here, because that would
-        // force users of this crate to depend on `bitvec` where they otherwise
-        // might not need to.
-        //
-        // NOTE: We skip the leading bit because it's always unset (we are turning
-        // the 32-byte repr into 256 bits, and $scalar::NUM_BITS = 255).
-
         rhs.mul(self)
     }
 }
@@ -170,6 +159,8 @@ macro_rules! define_mul_assign_variants {
 
 define_mul_assign_variants!(LHS = GroupElement, RHS = Scalar);
 define_mul_variants!(LHS = Fq, RHS = Ep, Output = Ep);
+define_mul_variants!(LHS = Ep, RHS = Fq, Output = Ep);
+
 define_mul_variants!(LHS = GroupElement, RHS = Scalar, Output = GroupElement);
 define_mul_variants!(LHS = Scalar, RHS = GroupElement, Output = GroupElement);
 
@@ -291,10 +282,19 @@ impl VartimeMultiscalarMul for GroupElement {
 
 #[cfg(test)]
 mod tests {
-    use group::Group;
     use pasta_curves::Ep;
+    use pasta_curves::group::Group;
     use crate::group::{GroupElement, VartimeMultiscalarMul};
     use crate::scalar::Scalar;
+
+    #[test]
+    fn test_scalar_multiplication() {
+        let generator = Ep::generator();
+        let generator_group_element = GroupElement(generator);
+
+        let one_times_generator = Scalar::one() * generator_group_element;
+        assert_eq!(generator, one_times_generator.0)
+    }
 
     #[test]
     fn test_vartime_multiscalr_mul() {
