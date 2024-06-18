@@ -5,7 +5,6 @@
 
 extern crate byteorder;
 extern crate core;
-extern crate curve25519_dalek;
 extern crate digest;
 extern crate merlin;
 extern crate rand;
