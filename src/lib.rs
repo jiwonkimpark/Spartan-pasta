@@ -590,6 +590,9 @@ impl NIZK {
 
 #[cfg(test)]
 mod tests {
+  use ff::Field;
+  use rand_core::OsRng;
+  use crate::scalar::pasta::fq::Fq;
   use super::*;
 
   #[test]
@@ -751,5 +754,71 @@ mod tests {
     assert!(proof
       .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
       .is_ok());
+  }
+
+  #[test]
+  fn test_from_prove_to_verify() {
+    // parameters of the R1CS instance
+    let num_cons = 1;
+    let num_vars = 2;
+    let num_inputs = 1;
+
+    // We will encode the above constraints into three matrices, where
+    // the coefficients in the matrix are in the little-endian byte order
+    let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
+    let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
+    let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
+
+    // Create a * b = c
+    A.push((0, 0, Scalar::one().to_bytes())); // 1*a
+    B.push((0, 1, Scalar::one().to_bytes())); // 1*b
+    C.push((0, 3, Scalar::one().to_bytes())); // 1*c
+    println!("m_a: {:?}", A);
+    println!("m_b: {:?}", B);
+    println!("m_c: {:?}", C);
+
+    let mut rng = OsRng;
+    let a_random = Fq::random(&mut rng);
+    println!("a: {:x?}", a_random.to_bytes());
+    let b_random = Fq::random(&mut rng);
+    println!("b: {:x?}", b_random.to_bytes());
+    let mul_result = a_random * b_random;
+    println!("c: {:x?}", mul_result.to_bytes());
+
+    // Var Assignments (Z_0 = 16 is the only output)
+    let mut vars = vec![Scalar::zero().to_bytes(); num_vars];
+    vars[0] = a_random.to_bytes();
+    vars[1] = b_random.to_bytes();
+
+    // create an InputsAssignment (c)
+    let mut inputs = vec![Scalar::zero().to_bytes(); num_inputs];
+    inputs[0] = mul_result.to_bytes();
+
+    let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
+    let assignment_vars = VarsAssignment::new(&vars).unwrap();
+
+    // Check if instance is satisfiable
+    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+    let res = inst.is_sat(&assignment_vars, &assignment_inputs);
+    assert!(res.unwrap(), "should be satisfied");
+
+    // NIZK public params
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+
+    // produce a NIZK
+    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let proof = NIZK::prove(
+      &inst,
+      assignment_vars,
+      &assignment_inputs,
+      &gens,
+      &mut prover_transcript,
+    );
+
+    // verify the NIZK
+    let mut verifier_transcript = Transcript::new(b"nizk_example");
+    assert!(proof
+        .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
+        .is_ok());
   }
 }
