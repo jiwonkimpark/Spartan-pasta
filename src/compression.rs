@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use ff::{Field, PrimeField};
+use group::Group;
 use pasta_curves::{Ep, EpAffine, Fp};
 use pasta_curves::arithmetic::CurveAffine;
 use pasta_curves::group::Curve;
@@ -20,21 +21,30 @@ use serde::de::{SeqAccess, Visitor};
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct CompressedPoint(pub [u8; 33]);
 
+const IDENTITY_COMPRESSED_POINT: CompressedPoint = CompressedPoint([0u8; 33]);
 impl CompressedPoint {
     /// If a point p = (x, y) is not an infinity point, point compression proceeds with the following steps:
     /// 1. convert x to an octet string m_x of length \lceil (log q) / 8 \rceil octets.
     /// 2. derive from y, a single bit \tilde{y} = y mod 2 and assign m_y = 0x02 or 0x03 based on \tilde{y}.
     /// 3. outputs m_y || m_x
     pub fn compress(p: Ep) -> CompressedPoint {
-        let p_coordinates = p.to_affine().coordinates().unwrap();
-        let m_y: u8 = Self::compress_y(p_coordinates.y());
-        let m_x: [u8; 32] = p_coordinates.x().to_repr();
+        if p.is_identity().into() {
+            IDENTITY_COMPRESSED_POINT
+        } else {
+            let p_coordinates_result = p.to_affine().coordinates();
+            if p_coordinates_result.is_none().into() {
+                panic!("could not get p_coordinates from {:?}", p);
+            }
+            let p_coordinates = p_coordinates_result.unwrap();
+            let m_y: u8 = Self::compress_y(p_coordinates.y());
+            let m_x: [u8; 32] = p_coordinates.x().to_repr();
 
-        let mut res = [0u8; 33];
-        res[0] = m_y;
-        res[1..33].copy_from_slice(&m_x);
+            let mut res = [0u8; 33];
+            res[0] = m_y;
+            res[1..33].copy_from_slice(&m_x);
 
-        CompressedPoint(res)
+            CompressedPoint(res)
+        }
     }
 
     /// To compress y, we first get \tilde{y_p} = y_p mod 2
@@ -56,14 +66,18 @@ impl CompressedPoint {
     /// 3. convert m_y into \tilde{y}
     /// 4. derive from x and \tilde{y} an elliptic curve point P = (x, y)
     pub fn decompress(&self) -> Option<Ep> {
-        let m_x = &self.0[1..33];
-        let x = Fp::from_repr(<[u8; 32]>::try_from(m_x).unwrap()).unwrap();
+        if self.0 == IDENTITY_COMPRESSED_POINT.0 {
+            Some(Ep::identity())
+        } else {
+            let m_x = &self.0[1..33];
+            let x = Fp::from_repr(<[u8; 32]>::try_from(m_x).unwrap()).unwrap();
 
-        let m_y = self.0[0];
-        let y = Self::decompress_y(m_y, x);
+            let m_y = self.0[0];
+            let y = Self::decompress_y(m_y, x);
 
-        let ep_affine = EpAffine::from_xy(x, y).unwrap();
-        Some(Ep::from(ep_affine))
+            let ep_affine = EpAffine::from_xy(x, y).unwrap();
+            Some(Ep::from(ep_affine))
+        }
     }
 
     fn decompress_y(m_y: u8, x: Fp) -> Fp {
@@ -161,6 +175,9 @@ pub const PALLAS_GENERATOR_COMPRESSED: CompressedPoint = {
 
 #[cfg(test)]
 mod tests {
+    use ff::PrimeField;
+    use group::GroupEncoding;
+    use pasta_curves::arithmetic::CurveExt;
     use pasta_curves::Ep;
     use pasta_curves::group::Group;
     use crate::compression::PALLAS_GENERATOR_COMPRESSED;
@@ -199,5 +216,12 @@ mod tests {
         let result = compressed.as_bytes();
 
         assert_eq!(compressed.0, *result)
+    }
+
+    #[test]
+    fn identity() {
+        let identity = Ep::identity();
+        let (x, y, z) = identity.jacobian_coordinates();
+        println!("{:?}", x.to_repr());
     }
 }
