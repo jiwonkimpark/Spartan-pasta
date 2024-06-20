@@ -1,1 +1,1 @@
-pub(crate) mod fq;
+pub mod fq;

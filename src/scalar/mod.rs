@@ -1,6 +1,6 @@
 use crate::scalar::pasta::fq::Fq;
 
-pub(crate) mod pasta;
+pub mod pasta;
 
 pub type Scalar = Fq;
 
