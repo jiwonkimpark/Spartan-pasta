@@ -1,5 +1,5 @@
 use super::errors::ProofVerifyError;
-use super::scalar::{Scalar, ScalarBytesFromScalar};
+use super::scalar::Scalar;
 use core::ops::{Mul, MulAssign};
 use std::borrow::Borrow;
 use std::ops::{Add, Sub};

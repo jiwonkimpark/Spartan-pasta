@@ -1,10 +1,8 @@
-use crate::scalar::pasta::fq::{Bytes, Fq};
-use crate::scalar::pasta::fq_bytes::FqBytes;
+use crate::scalar::pasta::fq::Fq;
 
 pub(crate) mod pasta;
 
 pub type Scalar = Fq;
-pub type ScalarBytes = FqBytes;
 
 pub trait ScalarFromPrimitives {
   fn to_scalar(self) -> Scalar;
@@ -28,19 +26,3 @@ impl ScalarFromPrimitives for bool {
   }
 }
 
-pub trait ScalarBytesFromScalar {
-  fn decompress_scalar(s: &Scalar) -> ScalarBytes;
-  fn decompress_vector(s: &[Scalar]) -> Vec<ScalarBytes>;
-}
-
-impl ScalarBytesFromScalar for Scalar {
-  fn decompress_scalar(s: &Scalar) -> ScalarBytes {
-    ScalarBytes::from_bytes_mod_order(s.to_bytes())
-  }
-
-  fn decompress_vector(s: &[Scalar]) -> Vec<ScalarBytes> {
-    (0..s.len())
-      .map(|i| Scalar::decompress_scalar(&s[i]))
-      .collect::<Vec<ScalarBytes>>()
-  }
-}
