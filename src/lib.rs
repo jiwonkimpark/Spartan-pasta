@@ -113,6 +113,7 @@ pub type VarsAssignment = Assignment;
 pub type InputsAssignment = Assignment;
 
 /// `Instance` holds the description of R1CS matrices and a hash of the matrices
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Instance {
   inst: R1CSInstance,
   digest: Vec<u8>,
@@ -466,6 +467,7 @@ impl SNARK {
 }
 
 /// `NIZKGens` holds public parameters for producing and verifying proofs with the Spartan NIZK
+#[derive(Debug)]
 pub struct NIZKGens {
   gens_r1cs_sat: R1CSGens,
 }
