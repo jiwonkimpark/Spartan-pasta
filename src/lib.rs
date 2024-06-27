@@ -467,7 +467,7 @@ impl SNARK {
 }
 
 /// `NIZKGens` holds public parameters for producing and verifying proofs with the Spartan NIZK
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NIZKGens {
   gens_r1cs_sat: R1CSGens,
 }

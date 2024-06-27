@@ -8,6 +8,7 @@ use pasta_curves::{Ep};
 use pasta_curves::arithmetic::CurveExt;
 use pasta_curves::group::Group;
 use pasta_curves::pallas::Affine;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use subtle::{Choice, ConditionallySelectable};
 use crate::compression::{CompressedPoint, PALLAS_GENERATOR_COMPRESSED};
 use crate::scalar::pasta::fq::Fq;
@@ -39,6 +40,27 @@ impl GroupElement {
         let point = hash(bytes);
 
         GroupElement(point)
+    }
+}
+
+impl Serialize for GroupElement {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        let compressed = CompressedPoint::compress(self.0);
+        compressed.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for GroupElement {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        let compressed = CompressedPoint::deserialize(deserializer).expect("failed to deserialize");
+        let point = compressed.decompress().unwrap();
+        Ok(GroupElement(point))
     }
 }
 
