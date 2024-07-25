@@ -489,7 +489,7 @@ impl NIZKGens {
 }
 
 /// `NIZK` holds a proof produced by Spartan NIZK
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NIZK {
   r1cs_sat_proof: R1CSProof,
   r: (Vec<Scalar>, Vec<Scalar>),

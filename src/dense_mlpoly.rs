@@ -39,7 +39,7 @@ pub struct PolyCommitmentBlinds {
   blinds: Vec<Scalar>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PolyCommitment {
   C: Vec<CompressedGroup>,
 }
@@ -297,7 +297,7 @@ impl AppendToTranscript for PolyCommitment {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PolyEvalProof {
   proof: DotProductProofLog,
 }

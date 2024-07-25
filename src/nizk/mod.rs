@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 mod bullet;
 use bullet::BulletReductionProof;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KnowledgeProof {
   alpha: CompressedGroup,
   z1: Scalar,
@@ -74,7 +74,7 @@ impl KnowledgeProof {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EqualityProof {
   alpha: CompressedGroup,
   z: Scalar,
@@ -143,7 +143,7 @@ impl EqualityProof {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProductProof {
   alpha: CompressedGroup,
   beta: CompressedGroup,
@@ -289,7 +289,7 @@ impl ProductProof {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DotProductProof {
   delta: CompressedGroup,
   beta: CompressedGroup,
@@ -418,7 +418,7 @@ impl DotProductProofGens {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DotProductProofLog {
   bullet_reduction_proof: BulletReductionProof,
   delta: CompressedGroup,

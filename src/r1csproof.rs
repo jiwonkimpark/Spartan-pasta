@@ -18,7 +18,7 @@ use core::iter;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct R1CSProof {
   comm_vars: PolyCommitment,
   sc_proof_phase1: ZKSumcheckInstanceProof,

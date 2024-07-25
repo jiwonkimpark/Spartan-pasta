@@ -13,7 +13,7 @@ use ff::Field;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BulletReductionProof {
   L_vec: Vec<CompressedGroup>,
   R_vec: Vec<CompressedGroup>,
