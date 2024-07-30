@@ -45,9 +45,10 @@ pub fn main() {
       &mut prover_transcript,
     );
 
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    bincode::serialize_into(&mut encoder, &proof).unwrap();
-    let proof_encoded = encoder.finish().unwrap();
+    // let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    // bincode::serialize_into(&mut encoder, &proof).unwrap();
+    // let proof_encoded = encoder.finish().unwrap();
+    let proof_encoded = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
     let msg_proof_len = format!("SNARK::proof_compressed_len {:?}", proof_encoded.len());
     print(&msg_proof_len);
 
