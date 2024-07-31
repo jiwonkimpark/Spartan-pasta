@@ -379,7 +379,7 @@ impl SNARK {
         )
       };
 
-      let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
+      let proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
 
       (proof, rx, ry)
@@ -408,7 +408,7 @@ impl SNARK {
         &mut random_tape,
       );
 
-      let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
+      let proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
       Timer::print(&format!("len_r1cs_eval_proof {:?}", proof_encoded.len()));
       proof
     };
@@ -536,7 +536,7 @@ impl NIZK {
         transcript,
         &mut random_tape,
       );
-      let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
+      let proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
       (proof, rx, ry)
     };
