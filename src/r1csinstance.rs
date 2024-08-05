@@ -1,3 +1,4 @@
+use bincode::serde::encode_to_vec;
 use ff::Field;
 use crate::transcript::AppendToTranscript;
 
@@ -154,7 +155,7 @@ impl R1CSInstance {
     // let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     // bincode::serialize_into(&mut encoder, &self).unwrap();
     // encoder.finish().unwrap()
-    bincode::serde::encode_to_vec(&self, bincode::config::legacy()).unwrap()
+    encode_to_vec(&self, bincode::config::legacy()).unwrap()
   }
 
   pub fn produce_synthetic_r1cs(

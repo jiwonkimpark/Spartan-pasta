@@ -45,8 +45,8 @@ impl GroupElement {
 
 impl Serialize for GroupElement {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         let compressed = CompressedPoint::compress(self.0);
         compressed.serialize(serializer)
@@ -55,8 +55,8 @@ impl Serialize for GroupElement {
 
 impl<'de> Deserialize<'de> for GroupElement {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let compressed = CompressedPoint::deserialize(deserializer).expect("failed to deserialize");
         let point = compressed.decompress().unwrap();
@@ -257,26 +257,25 @@ define_sub_variants!(LHS = GroupElement, RHS = GroupElement, Output = GroupEleme
 pub trait VartimeMultiscalarMul {
     type Scalar;
     fn vartime_multiscalar_mul<I, J>(scalars: I, points: J) -> Self
-        where
-            I: IntoIterator,
-            I::Item: Borrow<Self::Scalar>,
-            J: IntoIterator,
-            J::Item: Borrow<Self>,
-            Self: Clone;
+    where
+        I: IntoIterator,
+        I::Item: Borrow<Self::Scalar>,
+        J: IntoIterator,
+        J::Item: Borrow<Self>,
+        Self: Clone;
 }
 
 impl VartimeMultiscalarMul for GroupElement {
     type Scalar = Scalar;
 
     fn vartime_multiscalar_mul<I, J>(scalars: I, points: J) -> Self
-        where
-            I: IntoIterator,
-            I::Item: Borrow<Self::Scalar>,
-            J: IntoIterator,
-            J::Item: Borrow<Self>,
-            Self: Clone,
+    where
+        I: IntoIterator,
+        I::Item: Borrow<Self::Scalar>,
+        J: IntoIterator,
+        J::Item: Borrow<Self>,
+        Self: Clone,
     {
-        // TODO: use chain
         let mut point_iter = points.into_iter();
         let mut scalars_iter = scalars.into_iter();
 
@@ -286,28 +285,30 @@ impl VartimeMultiscalarMul for GroupElement {
         assert_eq!(p_lo, s_lo);
         assert_eq!(p_hi, Some(p_lo));
         assert_eq!(s_hi, Some(s_lo));
+        let len = p_lo;
 
         let points = point_iter.map(|p| p.borrow().into()).collect::<Vec<Point>>();
         let scalars = scalars_iter.map(|s| Fq(s.borrow().0)).collect::<Vec<Scalar>>();
-        //
-        let len = p_lo;
-        //
-        let mut sum = GroupElement(Ep::identity());
-        for i in 0..len {
-            let mul = GroupElement(points[i]) * scalars[i];
-            sum = sum + mul;
-        }
 
-        sum
+        let mut pairs = Vec::with_capacity(len);
+        for i in 0..len {
+            let scalar = pasta_curves::Fq::from_repr(scalars[i].to_repr()).unwrap();
+            pairs.push((scalar, points[i]));
+        }
+        let sum = multiexp::multiexp_vartime(&pairs);
+
+        GroupElement(sum)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use pasta_curves::Ep;
+    use ff::PrimeField;
+    use pasta_curves::{Ep, Fq};
     use pasta_curves::group::Group;
     use crate::group::{GroupElement, VartimeMultiscalarMul};
     use crate::scalar::Scalar;
+    use multiexp::multiexp_vartime;
 
     #[test]
     fn test_scalar_multiplication() {
@@ -319,7 +320,41 @@ mod tests {
     }
 
     #[test]
-    fn test_vartime_multiscalr_mul() {
+    fn test_vartime_multiscalar_mul_with_multiexp() {
+        let generator = Ep::generator();
+        let identity = Ep::identity();
+        let mut points: Vec<GroupElement> = Vec::new();
+        points.push(GroupElement(generator));
+        points.push(GroupElement(identity));
+        let mut points_converted: Vec<Ep> = Vec::new();
+        for point in points {
+            points_converted.push(point.0)
+        }
+
+        // test 1: 1 * Generator + 0 * Identity should be Generator
+        let one = Scalar::one();
+        let zero = Scalar::zero();
+        let mut scalars1: Vec<Scalar> = Vec::new();
+        scalars1.push(one);
+        scalars1.push(zero);
+
+        let mut scalars_converted: Vec<pasta_curves::Fq> = Vec::new();
+        for scalar1 in scalars1 {
+            let scalar = Fq::from_repr(scalar1.to_repr()).unwrap();
+            scalars_converted.push(Fq::from_repr(scalar1.to_repr()).unwrap())
+        }
+
+        let len = 1;
+        let mut pairs = Vec::with_capacity(len);
+        for i in 0..1 {
+            pairs.push((scalars_converted[i], points_converted[i]));
+        }
+        let result = multiexp_vartime(&pairs);
+        assert_eq!(result, generator);
+    }
+
+    #[test]
+    fn test_vartime_multiscalar_mul() {
         let generator = Ep::generator();
         let identity = Ep::identity();
         let mut points: Vec<GroupElement> = Vec::new();
