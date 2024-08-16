@@ -1,3 +1,4 @@
+use ff::Field;
 use super::commitments::{Commitments, MultiCommitGens};
 use super::group::GroupElement;
 use super::scalar::{Scalar, ScalarFromPrimitives};

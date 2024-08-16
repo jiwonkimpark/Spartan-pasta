@@ -1,6 +1,5 @@
 #![allow(non_snake_case)]
 #![doc = include_str!("../README.md")]
-#![deny(missing_docs)]
 #![allow(clippy::assertions_on_result_states)]
 
 extern crate byteorder;
@@ -24,13 +23,14 @@ mod product_tree;
 mod r1csinstance;
 mod r1csproof;
 mod random;
-mod scalar;
+pub mod scalar;
 mod sparse_mlpoly;
 mod sumcheck;
 mod timer;
 mod transcript;
 mod unipoly;
-
+mod arithmetic;
+mod compression;
 use core::cmp::max;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
@@ -43,6 +43,7 @@ use scalar::Scalar;
 use serde::{Deserialize, Serialize};
 use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
+use crate::scalar::pasta::fq::Bytes;
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 pub struct ComputationCommitment {
@@ -112,6 +113,7 @@ pub type VarsAssignment = Assignment;
 pub type InputsAssignment = Assignment;
 
 /// `Instance` holds the description of R1CS matrices and a hash of the matrices
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Instance {
   inst: R1CSInstance,
   digest: Vec<u8>,
@@ -377,7 +379,7 @@ impl SNARK {
         )
       };
 
-      let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
+      let proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
 
       (proof, rx, ry)
@@ -406,7 +408,7 @@ impl SNARK {
         &mut random_tape,
       );
 
-      let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
+      let proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
       Timer::print(&format!("len_r1cs_eval_proof {:?}", proof_encoded.len()));
       proof
     };
@@ -465,6 +467,7 @@ impl SNARK {
 }
 
 /// `NIZKGens` holds public parameters for producing and verifying proofs with the Spartan NIZK
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NIZKGens {
   gens_r1cs_sat: R1CSGens,
 }
@@ -486,7 +489,7 @@ impl NIZKGens {
 }
 
 /// `NIZK` holds a proof produced by Spartan NIZK
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NIZK {
   r1cs_sat_proof: R1CSProof,
   r: (Vec<Scalar>, Vec<Scalar>),
@@ -533,7 +536,7 @@ impl NIZK {
         transcript,
         &mut random_tape,
       );
-      let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
+      let proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
       (proof, rx, ry)
     };
@@ -588,6 +591,9 @@ impl NIZK {
 
 #[cfg(test)]
 mod tests {
+  use ff::Field;
+  use rand_core::OsRng;
+  use crate::scalar::pasta::fq::Fq;
   use super::*;
 
   #[test]
@@ -749,5 +755,71 @@ mod tests {
     assert!(proof
       .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
       .is_ok());
+  }
+
+  #[test]
+  fn test_from_prove_to_verify() {
+    // parameters of the R1CS instance
+    let num_cons = 1;
+    let num_vars = 2;
+    let num_inputs = 1;
+
+    // We will encode the above constraints into three matrices, where
+    // the coefficients in the matrix are in the little-endian byte order
+    let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
+    let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
+    let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
+
+    // Create a * b = c
+    A.push((0, 0, Scalar::one().to_bytes())); // 1*a
+    B.push((0, 1, Scalar::one().to_bytes())); // 1*b
+    C.push((0, 3, Scalar::one().to_bytes())); // 1*c
+    println!("m_a: {:?}", A);
+    println!("m_b: {:?}", B);
+    println!("m_c: {:?}", C);
+
+    let mut rng = OsRng;
+    let a_random = Fq::random(&mut rng);
+    println!("a: {:x?}", a_random.to_bytes());
+    let b_random = Fq::random(&mut rng);
+    println!("b: {:x?}", b_random.to_bytes());
+    let mul_result = a_random * b_random;
+    println!("c: {:x?}", mul_result.to_bytes());
+
+    // Var Assignments (Z_0 = 16 is the only output)
+    let mut vars = vec![Scalar::zero().to_bytes(); num_vars];
+    vars[0] = a_random.to_bytes();
+    vars[1] = b_random.to_bytes();
+
+    // create an InputsAssignment (c)
+    let mut inputs = vec![Scalar::zero().to_bytes(); num_inputs];
+    inputs[0] = mul_result.to_bytes();
+
+    let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
+    let assignment_vars = VarsAssignment::new(&vars).unwrap();
+
+    // Check if instance is satisfiable
+    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+    let res = inst.is_sat(&assignment_vars, &assignment_inputs);
+    assert!(res.unwrap(), "should be satisfied");
+
+    // NIZK public params
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+
+    // produce a NIZK
+    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let proof = NIZK::prove(
+      &inst,
+      assignment_vars,
+      &assignment_inputs,
+      &gens,
+      &mut prover_transcript,
+    );
+
+    // verify the NIZK
+    let mut verifier_transcript = Transcript::new(b"nizk_example");
+    assert!(proof
+        .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
+        .is_ok());
   }
 }

@@ -1199,7 +1199,7 @@ impl ProductLayerProof {
       proof_ops,
     };
 
-    let product_layer_proof_encoded: Vec<u8> = bincode::serialize(&product_layer_proof).unwrap();
+    let product_layer_proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&product_layer_proof, bincode::config::legacy()).unwrap();
     let msg = format!(
       "len_product_layer_proof {:?}",
       product_layer_proof_encoded.len()
@@ -1596,6 +1596,7 @@ impl SparsePolynomial {
 
 #[cfg(test)]
 mod tests {
+  use ff::Field;
   use super::*;
   use rand::rngs::OsRng;
   use rand::RngCore;

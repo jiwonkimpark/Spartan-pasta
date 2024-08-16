@@ -18,7 +18,7 @@ use core::iter;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct R1CSProof {
   comm_vars: PolyCommitment,
   sc_proof_phase1: ZKSumcheckInstanceProof,
@@ -36,6 +36,7 @@ pub struct R1CSProof {
   proof_eq_sc_phase2: EqualityProof,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct R1CSSumcheckGens {
   gens_1: MultiCommitGens,
   gens_3: MultiCommitGens,
@@ -57,6 +58,7 @@ impl R1CSSumcheckGens {
   }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct R1CSGens {
   gens_sc: R1CSSumcheckGens,
   gens_pc: PolyCommitmentGens,
@@ -403,9 +405,11 @@ impl R1CSProof {
     let taus_bound_rx: Scalar = (0..rx.len())
       .map(|i| rx[i] * tau[i] + (Scalar::one() - rx[i]) * (Scalar::one() - tau[i]))
       .product();
-    let expected_claim_post_phase1 = (taus_bound_rx
-      * (comm_prod_Az_Bz_claims.decompress().unwrap() - comm_Cz_claim.decompress().unwrap()))
-    .compress();
+    let expected_claim_post_phase1 = {
+      let point = taus_bound_rx
+          * (comm_prod_Az_Bz_claims.decompress().unwrap() - comm_Cz_claim.decompress().unwrap());
+      GroupElement(point).compress()
+    };
 
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
     self.proof_eq_sc_phase1.verify(
@@ -428,7 +432,7 @@ impl R1CSProof {
       iter::once(&comm_Az_claim)
         .chain(iter::once(&comm_Bz_claim))
         .chain(iter::once(&comm_Cz_claim))
-        .map(|pt| pt.decompress().unwrap())
+        .map(|pt| GroupElement(pt.decompress().unwrap()))
         .collect::<Vec<GroupElement>>(),
     )
     .compress();
@@ -467,8 +471,8 @@ impl R1CSProof {
     // compute commitment to eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
     let comm_eval_Z_at_ry = GroupElement::vartime_multiscalar_mul(
       iter::once(Scalar::one() - ry[0]).chain(iter::once(ry[0])),
-      iter::once(&self.comm_vars_at_ry.decompress().unwrap()).chain(iter::once(
-        &poly_input_eval.commit(&Scalar::zero(), &gens.gens_pc.gens.gens_1),
+      iter::once(GroupElement(self.comm_vars_at_ry.decompress().unwrap())).chain(iter::once(
+        poly_input_eval.commit(&Scalar::zero(), &gens.gens_pc.gens.gens_1),
       )),
     );
 
@@ -490,6 +494,7 @@ impl R1CSProof {
 
 #[cfg(test)]
 mod tests {
+  use ff::Field;
   use super::*;
   use rand::rngs::OsRng;
 

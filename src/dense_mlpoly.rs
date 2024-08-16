@@ -21,6 +21,7 @@ pub struct DensePolynomial {
   Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PolyCommitmentGens {
   pub gens: DotProductProofGens,
 }
@@ -38,7 +39,7 @@ pub struct PolyCommitmentBlinds {
   blinds: Vec<Scalar>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PolyCommitment {
   C: Vec<CompressedGroup>,
 }
@@ -296,7 +297,7 @@ impl AppendToTranscript for PolyCommitment {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PolyEvalProof {
   proof: DotProductProofLog,
 }
@@ -376,7 +377,7 @@ impl PolyEvalProof {
     let (L, R) = eq.compute_factored_evals();
 
     // compute a weighted sum of commitments and L
-    let C_decompressed = comm.C.iter().map(|pt| pt.decompress().unwrap());
+    let C_decompressed = comm.C.iter().map(|pt| GroupElement(pt.decompress().unwrap()));
 
     let C_LZ = GroupElement::vartime_multiscalar_mul(&L, C_decompressed).compress();
 
@@ -402,6 +403,7 @@ impl PolyEvalProof {
 
 #[cfg(test)]
 mod tests {
+  use ff::Field;
   use super::super::scalar::ScalarFromPrimitives;
   use super::*;
   use rand::rngs::OsRng;
