@@ -444,6 +444,7 @@ impl SparseMatPolynomial {
     }
   }
 
+  #[cfg(not(feature = "multicore"))]
   fn evaluate_with_tables(&self, eval_table_rx: &[Scalar], eval_table_ry: &[Scalar]) -> Scalar {
     assert_eq!(self.num_vars_x.pow2(), eval_table_rx.len());
     assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
@@ -453,6 +454,18 @@ impl SparseMatPolynomial {
       .iter()
       .map(|SparseMatEntry { row, col, val }| eval_table_rx[*row] * eval_table_ry[*col] * val)
       .sum()
+  }
+
+  #[cfg(feature = "multicore")]
+  fn evaluate_with_tables(&self, eval_table_rx: &[Scalar], eval_table_ry: &[Scalar]) -> Scalar {
+    assert_eq!(self.num_vars_x.pow2(), eval_table_rx.len());
+    assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
+
+    self
+        .M
+        .par_iter()
+        .map(|SparseMatEntry { row, col, val }| eval_table_rx[*row] * eval_table_ry[*col] * val)
+        .sum()
   }
 
   #[cfg(not(feature = "multicore"))]
