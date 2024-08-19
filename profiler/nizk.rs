@@ -6,9 +6,9 @@ extern crate libspartan;
 extern crate merlin;
 extern crate rand;
 
-use flate2::{write::ZlibEncoder, Compression};
+use bincode::serde::encode_to_vec;
 use libspartan::{Instance, NIZKGens, NIZK};
-use merlin::Transcript;
+use libspartan::transcript::Keccak256Transcript;
 
 fn print(msg: &str) {
   let star = "* ";
@@ -32,17 +32,18 @@ pub fn main() {
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // produce a proof of satisfiability
-    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let mut prover_transcript = Keccak256Transcript::new(b"nizk_example");
     let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    bincode::serialize_into(&mut encoder, &proof).unwrap();
-    let proof_encoded = encoder.finish().unwrap();
+    // let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    // bincode::serialize_into(&mut encoder, &proof).unwrap();
+    // let proof_encoded = encoder.finish().unwrap();
+    let proof_encoded = encode_to_vec(&proof, bincode::config::legacy()).unwrap();
     let msg_proof_len = format!("NIZK::proof_compressed_len {:?}", proof_encoded.len());
     print(&msg_proof_len);
 
     // verify the proof of satisfiability
-    let mut verifier_transcript = Transcript::new(b"nizk_example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"nizk_example");
     assert!(proof
       .verify(&inst, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
