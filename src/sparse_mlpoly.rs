@@ -16,6 +16,9 @@ use core::cmp::Ordering;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "multicore")]
+use rayon::prelude::*;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SparseMatEntry {
   row: usize,
@@ -452,6 +455,7 @@ impl SparseMatPolynomial {
       .sum()
   }
 
+  #[cfg(not(feature = "multicore"))]
   pub fn multi_evaluate(
     polys: &[&SparseMatPolynomial],
     rx: &[Scalar],
@@ -464,6 +468,21 @@ impl SparseMatPolynomial {
       .iter()
       .map(|poly| poly.evaluate_with_tables(&eval_table_rx, &eval_table_ry))
       .collect::<Vec<Scalar>>()
+  }
+
+  #[cfg(feature = "multicore")]
+  pub fn multi_evaluate(
+    polys: &[&SparseMatPolynomial],
+    rx: &[Scalar],
+    ry: &[Scalar],
+  ) -> Vec<Scalar> {
+    let eval_table_rx = EqPolynomial::new(rx.to_vec()).evals();
+    let eval_table_ry = EqPolynomial::new(ry.to_vec()).evals();
+
+    polys
+        .par_iter()
+        .map(|poly| poly.evaluate_with_tables(&eval_table_rx, &eval_table_ry))
+        .collect::<Vec<Scalar>>()
   }
 
   pub fn multiply_vec(&self, num_rows: usize, num_cols: usize, z: &[Scalar]) -> Vec<Scalar> {
