@@ -669,6 +669,10 @@ impl Fq {
 
         ret
     }
+
+    pub fn to_transcript_bytes(&self) -> Vec<u8> {
+        self.to_repr().to_vec()
+    }
 }
 
 impl From<Fq> for [u8; 32] {

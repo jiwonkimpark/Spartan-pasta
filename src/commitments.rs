@@ -1,8 +1,8 @@
 use super::group::{GroupElement, VartimeMultiscalarMul, GROUP_BASEPOINT_COMPRESSED};
 use super::scalar::Scalar;
-use digest::{ExtendableOutput, Input, XofReader};
 use serde::{Deserialize, Serialize};
-use sha3::Shake256;
+use sha3::{Shake256, digest::Update, digest::ExtendableOutput};
+use crate::digest::XofReader;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MultiCommitGens {
@@ -14,10 +14,10 @@ pub struct MultiCommitGens {
 impl MultiCommitGens {
   pub fn new(n: usize, label: &[u8]) -> Self {
     let mut shake = Shake256::default();
-    shake.input(label);
-    shake.input(GROUP_BASEPOINT_COMPRESSED.as_bytes());
+    shake.update(label);
+    shake.update(GROUP_BASEPOINT_COMPRESSED.as_bytes());
 
-    let mut reader = shake.xof_result();
+    let mut reader = shake.finalize_xof();
     let mut gens: Vec<GroupElement> = Vec::new();
     let mut uniform_bytes = [0u8; 64];
     for _ in 0..n + 1 {

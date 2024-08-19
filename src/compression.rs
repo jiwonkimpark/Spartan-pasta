@@ -119,6 +119,24 @@ impl CompressedPoint {
     pub const fn as_bytes(&self) -> &[u8; 33] {
         &self.0
     }
+
+    pub fn to_transcript_bytes(&self) -> Vec<u8> {
+        let affine = if self.0 == IDENTITY_COMPRESSED_POINT.0 {
+            Ep::identity().to_affine()
+        } else {
+            let m_x = &self.0[1..33];
+            let x = Fp::from_repr(<[u8; 32]>::try_from(m_x).unwrap()).unwrap();
+
+            let m_y = self.0[0];
+            let y = Self::decompress_y(m_y, x);
+
+            EpAffine::from_xy(x, y).unwrap()
+        };
+
+        let coords = affine.coordinates().unwrap();
+
+        [coords.x().to_repr(), coords.y().to_repr()].concat()
+    }
 }
 
 // Debug traits

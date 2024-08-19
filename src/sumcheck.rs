@@ -7,7 +7,7 @@ use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::nizk::DotProductProof;
 use super::random::RandomTape;
 use super::scalar::Scalar;
-use super::transcript::{AppendToTranscript, ProofTranscript};
+use super::transcript::{AppendToTranscript, Keccak256Transcript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
 use core::iter;
 use itertools::izip;
@@ -29,7 +29,7 @@ impl SumcheckInstanceProof {
     claim: Scalar,
     num_rounds: usize,
     degree_bound: usize,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(Scalar, Vec<Scalar>), ProofVerifyError> {
     let mut e = claim;
     let mut r: Vec<Scalar> = Vec::new();
@@ -46,7 +46,7 @@ impl SumcheckInstanceProof {
       assert_eq!(poly.eval_at_zero() + poly.eval_at_one(), e);
 
       // append the prover's message to the transcript
-      poly.append_to_transcript(b"poly", transcript);
+      poly.append_to_keccak_transcript(b"poly", transcript);
 
       //derive the verifier's challenge for the next round
       let r_i = transcript.challenge_scalar(b"challenge_nextround");
@@ -88,7 +88,7 @@ impl ZKSumcheckInstanceProof {
     degree_bound: usize,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(CompressedGroup, Vec<Scalar>), ProofVerifyError> {
     // verify degree bound
     assert_eq!(gens_n.n, degree_bound + 1);
@@ -102,7 +102,7 @@ impl ZKSumcheckInstanceProof {
       let comm_poly = &self.comm_polys[i];
 
       // append the prover's polynomial to the transcript
-      comm_poly.append_to_transcript(b"comm_poly", transcript);
+      comm_poly.append_to_keccak_transcript(b"comm_poly", transcript);
 
       //derive the verifier's challenge for the next round
       let r_i = transcript.challenge_scalar(b"challenge_nextround");
@@ -117,8 +117,8 @@ impl ZKSumcheckInstanceProof {
         let comm_eval = &self.comm_evals[i];
 
         // add two claims to transcript
-        comm_claim_per_round.append_to_transcript(b"comm_claim_per_round", transcript);
-        comm_eval.append_to_transcript(b"comm_eval", transcript);
+        comm_claim_per_round.append_to_keccak_transcript(b"comm_claim_per_round", transcript);
+        comm_eval.append_to_keccak_transcript(b"comm_eval", transcript);
 
         // produce two weights
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);
@@ -266,7 +266,7 @@ impl SumcheckInstanceProof {
     ),
     coeffs: &[Scalar],
     comb_func: F,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> (
     Self,
     Vec<Scalar>,
@@ -369,7 +369,7 @@ impl SumcheckInstanceProof {
       let poly = UniPoly::from_evals(&evals);
 
       // append the prover's message to the transcript
-      poly.append_to_transcript(b"poly", transcript);
+      poly.append_to_keccak_transcript(b"poly", transcript);
 
       //derive the verifier's challenge for the next round
       let r_j = transcript.challenge_scalar(b"challenge_nextround");
@@ -434,7 +434,7 @@ impl ZKSumcheckInstanceProof {
     comb_func: F,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>, Scalar)
   where
@@ -475,7 +475,7 @@ impl ZKSumcheckInstanceProof {
       };
 
       // append the prover's message to the transcript
-      comm_poly.append_to_transcript(b"comm_poly", transcript);
+      comm_poly.append_to_keccak_transcript(b"comm_poly", transcript);
       comm_polys.push(comm_poly);
 
       //derive the verifier's challenge for the next round
@@ -500,8 +500,8 @@ impl ZKSumcheckInstanceProof {
         // for efficiency we batch them using random weights
 
         // add two claims to transcript
-        comm_claim_per_round.append_to_transcript(b"comm_claim_per_round", transcript);
-        comm_eval.append_to_transcript(b"comm_eval", transcript);
+        comm_claim_per_round.append_to_keccak_transcript(b"comm_claim_per_round", transcript);
+        comm_eval.append_to_keccak_transcript(b"comm_eval", transcript);
 
         // produce two weights
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);
@@ -596,7 +596,7 @@ impl ZKSumcheckInstanceProof {
     comb_func: F,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>, Scalar)
   where
@@ -663,7 +663,7 @@ impl ZKSumcheckInstanceProof {
       };
 
       // append the prover's message to the transcript
-      comm_poly.append_to_transcript(b"comm_poly", transcript);
+      comm_poly.append_to_keccak_transcript(b"comm_poly", transcript);
       comm_polys.push(comm_poly);
 
       //derive the verifier's challenge for the next round
@@ -690,8 +690,8 @@ impl ZKSumcheckInstanceProof {
         // for efficiency we batch them using random weights
 
         // add two claims to transcript
-        comm_claim_per_round.append_to_transcript(b"comm_claim_per_round", transcript);
-        comm_eval.append_to_transcript(b"comm_eval", transcript);
+        comm_claim_per_round.append_to_keccak_transcript(b"comm_claim_per_round", transcript);
+        comm_eval.append_to_keccak_transcript(b"comm_eval", transcript);
 
         // produce two weights
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);

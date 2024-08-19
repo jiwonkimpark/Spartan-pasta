@@ -2,7 +2,7 @@ use ff::Field;
 use super::commitments::{Commitments, MultiCommitGens};
 use super::group::GroupElement;
 use super::scalar::{Scalar, ScalarFromPrimitives};
-use super::transcript::{AppendToTranscript, ProofTranscript};
+use super::transcript::{AppendToTranscript, Keccak256Transcript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -112,6 +112,14 @@ impl CompressedUniPoly {
 
 impl AppendToTranscript for UniPoly {
   fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
+    transcript.append_message(label, b"UniPoly_begin");
+    for i in 0..self.coeffs.len() {
+      transcript.append_scalar(b"coeff", &self.coeffs[i]);
+    }
+    transcript.append_message(label, b"UniPoly_end");
+  }
+
+  fn append_to_keccak_transcript(&self, label: &'static [u8], transcript: &mut Keccak256Transcript) {
     transcript.append_message(label, b"UniPoly_begin");
     for i in 0..self.coeffs.len() {
       transcript.append_scalar(b"coeff", &self.coeffs[i]);

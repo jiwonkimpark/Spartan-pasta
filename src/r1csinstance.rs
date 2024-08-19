@@ -1,6 +1,6 @@
 use bincode::serde::encode_to_vec;
 use ff::Field;
-use crate::transcript::AppendToTranscript;
+use crate::transcript::{AppendToTranscript, Keccak256Transcript};
 
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
@@ -62,6 +62,13 @@ impl AppendToTranscript for R1CSCommitment {
     transcript.append_u64(b"num_vars", self.num_vars as u64);
     transcript.append_u64(b"num_inputs", self.num_inputs as u64);
     self.comm.append_to_transcript(b"comm", transcript);
+  }
+
+  fn append_to_keccak_transcript(&self, label: &'static [u8], transcript: &mut Keccak256Transcript) {
+    transcript.append_u64(b"num_cons", self.num_cons as u64);
+    transcript.append_u64(b"num_vars", self.num_vars as u64);
+    transcript.append_u64(b"num_inputs", self.num_inputs as u64);
+    self.comm.append_to_keccak_transcript(b"comm", transcript);
   }
 }
 
@@ -330,7 +337,7 @@ impl R1CSEvalProof {
     ry: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> R1CSEvalProof {
     let timer = Timer::new("R1CSEvalProof::prove");
@@ -355,7 +362,7 @@ impl R1CSEvalProof {
     ry: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(), ProofVerifyError> {
     self.proof.verify(
       &comm.comm,

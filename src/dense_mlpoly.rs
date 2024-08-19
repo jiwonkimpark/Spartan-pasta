@@ -6,7 +6,7 @@ use super::math::Math;
 use super::nizk::{DotProductProofGens, DotProductProofLog};
 use super::random::RandomTape;
 use super::scalar::Scalar;
-use super::transcript::{AppendToTranscript, ProofTranscript};
+use super::transcript::{AppendToTranscript, Keccak256Transcript, ProofTranscript};
 use core::ops::Index;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
@@ -295,6 +295,14 @@ impl AppendToTranscript for PolyCommitment {
     }
     transcript.append_message(label, b"poly_commitment_end");
   }
+
+  fn append_to_keccak_transcript(&self, label: &'static [u8], transcript: &mut Keccak256Transcript) {
+    transcript.append_message(label, b"poly_commitment_begin");
+    for i in 0..self.C.len() {
+      transcript.append_point(b"poly_commitment_share", &self.C[i]);
+    }
+    transcript.append_message(label, b"poly_commitment_end");
+  }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -314,7 +322,7 @@ impl PolyEvalProof {
     Zr: &Scalar,                   // evaluation of \widetilde{Z}(r)
     blind_Zr_opt: Option<&Scalar>, // specifies a blind for Zr
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> (PolyEvalProof, CompressedGroup) {
     transcript.append_protocol_name(PolyEvalProof::protocol_name());
@@ -365,7 +373,7 @@ impl PolyEvalProof {
   pub fn verify(
     &self,
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     r: &[Scalar],           // point at which the polynomial is evaluated
     C_Zr: &CompressedGroup, // commitment to \widetilde{Z}(r)
     comm: &PolyCommitment,
@@ -389,7 +397,7 @@ impl PolyEvalProof {
   pub fn verify_plain(
     &self,
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     r: &[Scalar], // point at which the polynomial is evaluated
     Zr: &Scalar,  // evaluation \widetilde{Z}(r)
     comm: &PolyCommitment,
@@ -582,7 +590,7 @@ mod tests {
     let (poly_commitment, blinds) = poly.commit(&gens, None);
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let (proof, C_Zr) = PolyEvalProof::prove(
       &poly,
       Some(&blinds),

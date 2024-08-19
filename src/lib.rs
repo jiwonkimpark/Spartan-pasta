@@ -27,11 +27,12 @@ pub mod scalar;
 mod sparse_mlpoly;
 mod sumcheck;
 mod timer;
-mod transcript;
+pub mod transcript;
 mod unipoly;
 mod arithmetic;
 mod compression;
 use core::cmp::max;
+use std::time::Instant;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
 use r1csinstance::{
@@ -44,6 +45,7 @@ use serde::{Deserialize, Serialize};
 use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
 use crate::scalar::pasta::fq::Bytes;
+use crate::transcript::Keccak256Transcript;
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 pub struct ComputationCommitment {
@@ -345,7 +347,7 @@ impl SNARK {
     vars: VarsAssignment,
     inputs: &InputsAssignment,
     gens: &SNARKGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Self {
     let timer_prove = Timer::new("SNARK::prove");
 
@@ -354,7 +356,7 @@ impl SNARK {
     let mut random_tape = RandomTape::new(b"proof");
 
     transcript.append_protocol_name(SNARK::protocol_name());
-    comm.comm.append_to_transcript(b"comm", transcript);
+    comm.comm.append_to_keccak_transcript(b"comm", transcript);
 
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = {
@@ -390,9 +392,9 @@ impl SNARK {
     let timer_eval = Timer::new("eval_sparse_polys");
     let inst_evals = {
       let (Ar, Br, Cr) = inst.inst.evaluate(&rx, &ry);
-      Ar.append_to_transcript(b"Ar_claim", transcript);
-      Br.append_to_transcript(b"Br_claim", transcript);
-      Cr.append_to_transcript(b"Cr_claim", transcript);
+      Ar.append_to_keccak_transcript(b"Ar_claim", transcript);
+      Br.append_to_keccak_transcript(b"Br_claim", transcript);
+      Cr.append_to_keccak_transcript(b"Cr_claim", transcript);
       (Ar, Br, Cr)
     };
     timer_eval.stop();
@@ -426,14 +428,14 @@ impl SNARK {
     &self,
     comm: &ComputationCommitment,
     input: &InputsAssignment,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     gens: &SNARKGens,
   ) -> Result<(), ProofVerifyError> {
     let timer_verify = Timer::new("SNARK::verify");
     transcript.append_protocol_name(SNARK::protocol_name());
 
     // append a commitment to the computation to the transcript
-    comm.comm.append_to_transcript(b"comm", transcript);
+    comm.comm.append_to_keccak_transcript(b"comm", transcript);
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
@@ -449,9 +451,9 @@ impl SNARK {
 
     let timer_eval_proof = Timer::new("verify_eval_proof");
     let (Ar, Br, Cr) = &self.inst_evals;
-    Ar.append_to_transcript(b"Ar_claim", transcript);
-    Br.append_to_transcript(b"Br_claim", transcript);
-    Cr.append_to_transcript(b"Cr_claim", transcript);
+    Ar.append_to_keccak_transcript(b"Ar_claim", transcript);
+    Br.append_to_keccak_transcript(b"Br_claim", transcript);
+    Cr.append_to_keccak_transcript(b"Cr_claim", transcript);
     self.r1cs_eval_proof.verify(
       &comm.comm,
       &rx,
@@ -506,18 +508,23 @@ impl NIZK {
     vars: VarsAssignment,
     input: &InputsAssignment,
     gens: &NIZKGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Self {
     let timer_prove = Timer::new("NIZK::prove");
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
     let mut random_tape = RandomTape::new(b"proof");
-
+    let mut timer = Instant::now();
     transcript.append_protocol_name(NIZK::protocol_name());
+    println!("1. append protocol name to transcript: {:.2?}", timer.elapsed());
+
+    timer = Instant::now();
     transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
+    println!("2. append message to transcript: {:.2?}", timer.elapsed());
 
     let (r1cs_sat_proof, rx, ry) = {
       // we might need to pad variables
+      timer = Instant::now();
       let padded_vars = {
         let num_padded_vars = inst.inst.get_num_vars();
         let num_vars = vars.assignment.len();
@@ -527,7 +534,9 @@ impl NIZK {
           vars
         }
       };
+      println!("3. padding variables: {:.2?}", timer.elapsed());
 
+      timer = Instant::now();
       let (proof, rx, ry) = R1CSProof::prove(
         &inst.inst,
         padded_vars.assignment,
@@ -536,7 +545,12 @@ impl NIZK {
         transcript,
         &mut random_tape,
       );
+      println!("4. R1CS proof: {:.2?}", timer.elapsed());
+
+      timer = Instant::now();
       let proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
+      println!("5. encoding proof: {:.2?}", timer.elapsed());
+
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
       (proof, rx, ry)
     };
@@ -553,7 +567,7 @@ impl NIZK {
     &self,
     inst: &Instance,
     input: &InputsAssignment,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     gens: &NIZKGens,
   ) -> Result<(), ProofVerifyError> {
     let timer_verify = Timer::new("NIZK::verify");
@@ -612,7 +626,7 @@ mod tests {
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let proof = SNARK::prove(
       &inst,
       &comm,
@@ -624,7 +638,7 @@ mod tests {
     );
 
     // verify the proof
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"example");
     assert!(proof
       .verify(&comm, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
@@ -720,7 +734,7 @@ mod tests {
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a SNARK
-    let mut prover_transcript = Transcript::new(b"snark_example");
+    let mut prover_transcript = Keccak256Transcript::new(b"snark_example");
     let proof = SNARK::prove(
       &inst,
       &comm,
@@ -732,7 +746,7 @@ mod tests {
     );
 
     // verify the SNARK
-    let mut verifier_transcript = Transcript::new(b"snark_example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"snark_example");
     assert!(proof
       .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
       .is_ok());
@@ -741,7 +755,7 @@ mod tests {
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // produce a NIZK
-    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let mut prover_transcript = Keccak256Transcript::new(b"nizk_example");
     let proof = NIZK::prove(
       &inst,
       assignment_vars,
@@ -751,7 +765,7 @@ mod tests {
     );
 
     // verify the NIZK
-    let mut verifier_transcript = Transcript::new(b"nizk_example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"nizk_example");
     assert!(proof
       .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
       .is_ok());
@@ -807,7 +821,7 @@ mod tests {
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // produce a NIZK
-    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let mut prover_transcript = Keccak256Transcript::new(b"nizk_example");
     let proof = NIZK::prove(
       &inst,
       assignment_vars,
@@ -817,7 +831,7 @@ mod tests {
     );
 
     // verify the NIZK
-    let mut verifier_transcript = Transcript::new(b"nizk_example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"nizk_example");
     assert!(proof
         .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
         .is_ok());

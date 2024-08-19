@@ -4,7 +4,7 @@ use super::dense_mlpoly::EqPolynomial;
 use super::math::Math;
 use super::scalar::Scalar;
 use super::sumcheck::SumcheckInstanceProof;
-use super::transcript::ProofTranscript;
+use super::transcript::{Keccak256Transcript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -121,7 +121,7 @@ impl LayerProof {
     claim: Scalar,
     num_rounds: usize,
     degree_bound: usize,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> (Scalar, Vec<Scalar>) {
     self
       .proof
@@ -145,7 +145,7 @@ impl LayerProofBatched {
     claim: Scalar,
     num_rounds: usize,
     degree_bound: usize,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> (Scalar, Vec<Scalar>) {
     self
       .proof
@@ -221,7 +221,7 @@ impl ProductCircuitEvalProof {
     &self,
     eval: Scalar,
     len: usize,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> (Scalar, Vec<Scalar>) {
     let num_layers = len.log_2();
     let mut claim = eval;
@@ -259,7 +259,7 @@ impl ProductCircuitEvalProofBatched {
   pub fn prove(
     prod_circuit_vec: &mut [&mut ProductCircuit],
     dotp_circuit_vec: &mut [&mut DotProductCircuit],
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> (Self, Vec<Scalar>) {
     assert!(!prod_circuit_vec.is_empty());
 
@@ -387,7 +387,7 @@ impl ProductCircuitEvalProofBatched {
     claims_prod_vec: &[Scalar],
     claims_dotp_vec: &[Scalar],
     len: usize,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>) {
     let num_layers = len.log_2();
     let mut rand: Vec<Scalar> = Vec::new();

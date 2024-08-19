@@ -288,10 +288,10 @@ impl VartimeMultiscalarMul for GroupElement {
         assert_eq!(s_hi, Some(s_lo));
         let len = p_lo;
 
-        let points: Vec<Affine> = point_iter.map(|p| p.borrow().into().to_affine()).collect::<Vec<Affine>>();
-        let scalars = scalars_iter.map(|s| pasta_curves::Fq::from_repr(Fq(s.borrow().0).to_repr()).unwrap()).collect::<Vec<pasta_curves::Fq>>();
-
-        let result = pasta_msm::pallas(points.as_slice(), scalars.as_slice());
+        // let points: Vec<Affine> = point_iter.map(|p| p.borrow().into().to_affine()).collect::<Vec<Affine>>();
+        // let scalars = scalars_iter.map(|s| pasta_curves::Fq::from_repr(Fq(s.borrow().0).to_repr()).unwrap()).collect::<Vec<pasta_curves::Fq>>();
+        //
+        // let result = pasta_msm::pallas(points.as_slice(), scalars.as_slice());
 
         // let result: Ep = if len >= 128 {
         //     pasta_msm::pallas(points.as_slice(), scalars.as_slice())
@@ -300,12 +300,14 @@ impl VartimeMultiscalarMul for GroupElement {
         // };
 
         // let result = msm_best(scalars.as_slice(), points.as_slice());
-        // let mut pairs = Vec::with_capacity(len);
-        // for i in 0..len {
-        //     let scalar = pasta_curves::Fq::from_repr(scalars[i].to_repr()).unwrap();
-        //     pairs.push((scalar, points[i]));
-        // }
-        // let sum = multiexp::multiexp_vartime(&pairs);
+        let points: Vec<Point> = point_iter.map(|p| p.borrow().into()).collect::<Vec<Point>>();
+        let scalars = scalars_iter.map(|s| pasta_curves::Fq::from_repr(Fq(s.borrow().0).to_repr()).unwrap()).collect::<Vec<pasta_curves::Fq>>();
+
+        let mut pairs = Vec::with_capacity(len);
+        for i in 0..len {
+            pairs.push((scalars[i], points[i]));
+        }
+        let result = multiexp::multiexp_vartime(&pairs);
 
         GroupElement(result)
     }

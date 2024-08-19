@@ -12,6 +12,7 @@ use core::iter;
 use ff::Field;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
+use crate::transcript::Keccak256Transcript;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BulletReductionProof {
@@ -31,7 +32,7 @@ impl BulletReductionProof {
   /// The lengths of the vectors must all be the same, and must all be
   /// either 0 or a power of 2.
   pub fn prove(
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     Q: &GroupElement,
     G_vec: &[GroupElement],
     H: &GroupElement,
@@ -138,7 +139,7 @@ impl BulletReductionProof {
   fn verification_scalars(
     &self,
     n: usize,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(Vec<Scalar>, Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
     let lg_n = self.L_vec.len();
     if lg_n >= 32 {
@@ -193,7 +194,7 @@ impl BulletReductionProof {
     &self,
     n: usize,
     a: &[Scalar],
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     Gamma: &GroupElement,
     G: &[GroupElement],
   ) -> Result<(GroupElement, GroupElement, Scalar), ProofVerifyError> {

@@ -11,7 +11,7 @@ use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalP
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::timer::Timer;
-use super::transcript::{AppendToTranscript, ProofTranscript};
+use super::transcript::{AppendToTranscript, Keccak256Transcript, ProofTranscript};
 use core::cmp::Ordering;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
@@ -82,13 +82,13 @@ impl DerefsEvalProof {
     r: &[Scalar],
     evals: Vec<Scalar>,
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> PolyEvalProof {
     assert_eq!(joint_poly.get_num_vars(), r.len() + evals.len().log_2());
 
     // append the claimed evaluations to transcript
-    evals.append_to_transcript(b"evals_ops_val", transcript);
+    evals.append_to_keccak_transcript(b"evals_ops_val", transcript);
 
     // n-to-1 reduction
     let (r_joint, eval_joint) = {
@@ -107,7 +107,7 @@ impl DerefsEvalProof {
       (r_joint, joint_claim_eval)
     };
     // decommit the joint polynomial at r_joint
-    eval_joint.append_to_transcript(b"joint_claim_eval", transcript);
+    eval_joint.append_to_keccak_transcript(b"joint_claim_eval", transcript);
     let (proof_derefs, _comm_derefs_eval) = PolyEvalProof::prove(
       joint_poly,
       None,
@@ -129,7 +129,7 @@ impl DerefsEvalProof {
     eval_col_ops_val_vec: &[Scalar],
     r: &[Scalar],
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> Self {
     transcript.append_protocol_name(DerefsEvalProof::protocol_name());
@@ -152,10 +152,10 @@ impl DerefsEvalProof {
     r: &[Scalar],
     evals: Vec<Scalar>,
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(), ProofVerifyError> {
     // append the claimed evaluations to transcript
-    evals.append_to_transcript(b"evals_ops_val", transcript);
+    evals.append_to_keccak_transcript(b"evals_ops_val", transcript);
 
     // n-to-1 reduction
     let challenges =
@@ -170,7 +170,7 @@ impl DerefsEvalProof {
     r_joint.extend(r);
 
     // decommit the joint polynomial at r_joint
-    joint_claim_eval.append_to_transcript(b"joint_claim_eval", transcript);
+    joint_claim_eval.append_to_keccak_transcript(b"joint_claim_eval", transcript);
 
     proof.verify_plain(gens, transcript, &r_joint, &joint_claim_eval, comm)
   }
@@ -183,7 +183,7 @@ impl DerefsEvalProof {
     eval_col_ops_val_vec: &[Scalar],
     gens: &PolyCommitmentGens,
     comm: &DerefsCommitment,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(DerefsEvalProof::protocol_name());
     let mut evals = eval_row_ops_val_vec.to_owned();
@@ -205,6 +205,12 @@ impl AppendToTranscript for DerefsCommitment {
   fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
     transcript.append_message(b"derefs_commitment", b"begin_derefs_commitment");
     self.comm_ops_val.append_to_transcript(label, transcript);
+    transcript.append_message(b"derefs_commitment", b"end_derefs_commitment");
+  }
+
+  fn append_to_keccak_transcript(&self, label: &'static [u8], transcript: &mut Keccak256Transcript) {
+    transcript.append_message(b"derefs_commitment", b"begin_derefs_commitment");
+    self.comm_ops_val.append_to_keccak_transcript(label, transcript);
     transcript.append_message(b"derefs_commitment", b"end_derefs_commitment");
   }
 }
@@ -334,6 +340,18 @@ impl AppendToTranscript for SparseMatPolyCommitment {
     self
       .comm_comb_mem
       .append_to_transcript(b"comm_comb_mem", transcript);
+  }
+
+  fn append_to_keccak_transcript(&self, label: &'static [u8], transcript: &mut Keccak256Transcript) {
+    transcript.append_u64(b"batch_size", self.batch_size as u64);
+    transcript.append_u64(b"num_ops", self.num_ops as u64);
+    transcript.append_u64(b"num_mem_cells", self.num_mem_cells as u64);
+    self
+        .comm_comb_ops
+        .append_to_keccak_transcript(b"comm_comb_ops", transcript);
+    self
+        .comm_comb_mem
+        .append_to_keccak_transcript(b"comm_comb_mem", transcript);
   }
 }
 
@@ -721,7 +739,7 @@ impl HashLayerProof {
     dense: &MultiSparseMatPolynomialAsDense,
     derefs: &Derefs,
     gens: &SparseMatPolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> Self {
     transcript.append_protocol_name(HashLayerProof::protocol_name());
@@ -768,7 +786,7 @@ impl HashLayerProof {
     evals_ops.extend(&eval_col_read_ts_vec);
     evals_ops.extend(&eval_val_vec);
     evals_ops.resize(evals_ops.len().next_power_of_two(), Scalar::zero());
-    evals_ops.append_to_transcript(b"claim_evals_ops", transcript);
+    evals_ops.append_to_keccak_transcript(b"claim_evals_ops", transcript);
     let challenges_ops =
       transcript.challenge_vector(b"challenge_combine_n_to_one", evals_ops.len().log_2());
 
@@ -781,7 +799,7 @@ impl HashLayerProof {
     let mut r_joint_ops = challenges_ops;
     r_joint_ops.extend(rand_ops);
     debug_assert_eq!(dense.comb_ops.evaluate(&r_joint_ops), joint_claim_eval_ops);
-    joint_claim_eval_ops.append_to_transcript(b"joint_claim_eval_ops", transcript);
+    joint_claim_eval_ops.append_to_keccak_transcript(b"joint_claim_eval_ops", transcript);
     let (proof_ops, _comm_ops_eval) = PolyEvalProof::prove(
       &dense.comb_ops,
       None,
@@ -795,7 +813,7 @@ impl HashLayerProof {
 
     // form a single decommitment using comb_comb_mem at rand_mem
     let evals_mem: Vec<Scalar> = vec![eval_row_audit_ts, eval_col_audit_ts];
-    evals_mem.append_to_transcript(b"claim_evals_mem", transcript);
+    evals_mem.append_to_keccak_transcript(b"claim_evals_mem", transcript);
     let challenges_mem =
       transcript.challenge_vector(b"challenge_combine_two_to_one", evals_mem.len().log_2());
 
@@ -808,7 +826,7 @@ impl HashLayerProof {
     let mut r_joint_mem = challenges_mem;
     r_joint_mem.extend(rand_mem);
     debug_assert_eq!(dense.comb_mem.evaluate(&r_joint_mem), joint_claim_eval_mem);
-    joint_claim_eval_mem.append_to_transcript(b"joint_claim_eval_mem", transcript);
+    joint_claim_eval_mem.append_to_keccak_transcript(b"joint_claim_eval_mem", transcript);
     let (proof_mem, _comm_mem_eval) = PolyEvalProof::prove(
       &dense.comb_mem,
       None,
@@ -895,7 +913,7 @@ impl HashLayerProof {
     ry: &[Scalar],
     r_hash: &Scalar,
     r_multiset_check: &Scalar,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(), ProofVerifyError> {
     let timer = Timer::new("verify_hash_proof");
     transcript.append_protocol_name(HashLayerProof::protocol_name());
@@ -938,7 +956,7 @@ impl HashLayerProof {
     evals_ops.extend(eval_col_read_ts_vec);
     evals_ops.extend(eval_val_vec);
     evals_ops.resize(evals_ops.len().next_power_of_two(), Scalar::zero());
-    evals_ops.append_to_transcript(b"claim_evals_ops", transcript);
+    evals_ops.append_to_keccak_transcript(b"claim_evals_ops", transcript);
     let challenges_ops =
       transcript.challenge_vector(b"challenge_combine_n_to_one", evals_ops.len().log_2());
 
@@ -950,7 +968,7 @@ impl HashLayerProof {
     let joint_claim_eval_ops = poly_evals_ops[0];
     let mut r_joint_ops = challenges_ops;
     r_joint_ops.extend(rand_ops);
-    joint_claim_eval_ops.append_to_transcript(b"joint_claim_eval_ops", transcript);
+    joint_claim_eval_ops.append_to_keccak_transcript(b"joint_claim_eval_ops", transcript);
     self.proof_ops.verify_plain(
       &gens.gens_ops,
       transcript,
@@ -962,7 +980,7 @@ impl HashLayerProof {
     // verify proof-mem using comm_comb_mem at rand_mem
     // form a single decommitment using comb_comb_mem at rand_mem
     let evals_mem: Vec<Scalar> = vec![*eval_row_audit_ts, *eval_col_audit_ts];
-    evals_mem.append_to_transcript(b"claim_evals_mem", transcript);
+    evals_mem.append_to_keccak_transcript(b"claim_evals_mem", transcript);
     let challenges_mem =
       transcript.challenge_vector(b"challenge_combine_two_to_one", evals_mem.len().log_2());
 
@@ -974,7 +992,7 @@ impl HashLayerProof {
     let joint_claim_eval_mem = poly_evals_mem[0];
     let mut r_joint_mem = challenges_mem;
     r_joint_mem.extend(rand_mem);
-    joint_claim_eval_mem.append_to_transcript(b"joint_claim_eval_mem", transcript);
+    joint_claim_eval_mem.append_to_keccak_transcript(b"joint_claim_eval_mem", transcript);
     self.proof_mem.verify_plain(
       &gens.gens_mem,
       transcript,
@@ -1035,7 +1053,7 @@ impl ProductLayerProof {
     dense: &MultiSparseMatPolynomialAsDense,
     derefs: &Derefs,
     eval: &[Scalar],
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>) {
     transcript.append_protocol_name(ProductLayerProof::protocol_name());
 
@@ -1055,10 +1073,10 @@ impl ProductLayerProof {
     let rs: Scalar = (0..row_eval_read.len()).map(|i| row_eval_read[i]).product();
     assert_eq!(row_eval_init * ws, rs * row_eval_audit);
 
-    row_eval_init.append_to_transcript(b"claim_row_eval_init", transcript);
-    row_eval_read.append_to_transcript(b"claim_row_eval_read", transcript);
-    row_eval_write.append_to_transcript(b"claim_row_eval_write", transcript);
-    row_eval_audit.append_to_transcript(b"claim_row_eval_audit", transcript);
+    row_eval_init.append_to_keccak_transcript(b"claim_row_eval_init", transcript);
+    row_eval_read.append_to_keccak_transcript(b"claim_row_eval_read", transcript);
+    row_eval_write.append_to_keccak_transcript(b"claim_row_eval_write", transcript);
+    row_eval_audit.append_to_keccak_transcript(b"claim_row_eval_audit", transcript);
 
     let col_eval_init = col_prod_layer.init.evaluate();
     let col_eval_audit = col_prod_layer.audit.evaluate();
@@ -1076,10 +1094,10 @@ impl ProductLayerProof {
     let rs: Scalar = (0..col_eval_read.len()).map(|i| col_eval_read[i]).product();
     assert_eq!(col_eval_init * ws, rs * col_eval_audit);
 
-    col_eval_init.append_to_transcript(b"claim_col_eval_init", transcript);
-    col_eval_read.append_to_transcript(b"claim_col_eval_read", transcript);
-    col_eval_write.append_to_transcript(b"claim_col_eval_write", transcript);
-    col_eval_audit.append_to_transcript(b"claim_col_eval_audit", transcript);
+    col_eval_init.append_to_keccak_transcript(b"claim_col_eval_init", transcript);
+    col_eval_read.append_to_keccak_transcript(b"claim_col_eval_read", transcript);
+    col_eval_write.append_to_keccak_transcript(b"claim_col_eval_write", transcript);
+    col_eval_audit.append_to_keccak_transcript(b"claim_col_eval_audit", transcript);
 
     // prepare dotproduct circuit for batching then with ops-related product circuits
     assert_eq!(eval.len(), derefs.row_ops_val.len());
@@ -1102,8 +1120,8 @@ impl ProductLayerProof {
       let (eval_dotp_left, eval_dotp_right) =
         (dotp_circuit_left.evaluate(), dotp_circuit_right.evaluate());
 
-      eval_dotp_left.append_to_transcript(b"claim_eval_dotp_left", transcript);
-      eval_dotp_right.append_to_transcript(b"claim_eval_dotp_right", transcript);
+      eval_dotp_left.append_to_keccak_transcript(b"claim_eval_dotp_left", transcript);
+      eval_dotp_right.append_to_keccak_transcript(b"claim_eval_dotp_right", transcript);
       assert_eq!(eval_dotp_left + eval_dotp_right, eval[i]);
       eval_dotp_left_vec.push(eval_dotp_left);
       eval_dotp_right_vec.push(eval_dotp_right);
@@ -1214,7 +1232,7 @@ impl ProductLayerProof {
     num_ops: usize,
     num_cells: usize,
     eval: &[Scalar],
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<
     (
       Vec<Scalar>,
@@ -1240,10 +1258,10 @@ impl ProductLayerProof {
     let rs: Scalar = (0..row_eval_read.len()).map(|i| row_eval_read[i]).product();
     assert_eq!(row_eval_init * ws, rs * row_eval_audit);
 
-    row_eval_init.append_to_transcript(b"claim_row_eval_init", transcript);
-    row_eval_read.append_to_transcript(b"claim_row_eval_read", transcript);
-    row_eval_write.append_to_transcript(b"claim_row_eval_write", transcript);
-    row_eval_audit.append_to_transcript(b"claim_row_eval_audit", transcript);
+    row_eval_init.append_to_keccak_transcript(b"claim_row_eval_init", transcript);
+    row_eval_read.append_to_keccak_transcript(b"claim_row_eval_read", transcript);
+    row_eval_write.append_to_keccak_transcript(b"claim_row_eval_write", transcript);
+    row_eval_audit.append_to_keccak_transcript(b"claim_row_eval_audit", transcript);
 
     // subset check
     let (col_eval_init, col_eval_read, col_eval_write, col_eval_audit) = &self.eval_col;
@@ -1255,10 +1273,10 @@ impl ProductLayerProof {
     let rs: Scalar = (0..col_eval_read.len()).map(|i| col_eval_read[i]).product();
     assert_eq!(col_eval_init * ws, rs * col_eval_audit);
 
-    col_eval_init.append_to_transcript(b"claim_col_eval_init", transcript);
-    col_eval_read.append_to_transcript(b"claim_col_eval_read", transcript);
-    col_eval_write.append_to_transcript(b"claim_col_eval_write", transcript);
-    col_eval_audit.append_to_transcript(b"claim_col_eval_audit", transcript);
+    col_eval_init.append_to_keccak_transcript(b"claim_col_eval_init", transcript);
+    col_eval_read.append_to_keccak_transcript(b"claim_col_eval_read", transcript);
+    col_eval_write.append_to_keccak_transcript(b"claim_col_eval_write", transcript);
+    col_eval_audit.append_to_keccak_transcript(b"claim_col_eval_audit", transcript);
 
     // verify the evaluation of the sparse polynomial
     let (eval_dotp_left, eval_dotp_right) = &self.eval_val;
@@ -1267,8 +1285,8 @@ impl ProductLayerProof {
     let mut claims_dotp_circuit: Vec<Scalar> = Vec::new();
     for i in 0..num_instances {
       assert_eq!(eval_dotp_left[i] + eval_dotp_right[i], eval[i]);
-      eval_dotp_left[i].append_to_transcript(b"claim_eval_dotp_left", transcript);
-      eval_dotp_right[i].append_to_transcript(b"claim_eval_dotp_right", transcript);
+      eval_dotp_left[i].append_to_keccak_transcript(b"claim_eval_dotp_left", transcript);
+      eval_dotp_right[i].append_to_keccak_transcript(b"claim_eval_dotp_right", transcript);
 
       claims_dotp_circuit.push(eval_dotp_left[i]);
       claims_dotp_circuit.push(eval_dotp_right[i]);
@@ -1322,7 +1340,7 @@ impl PolyEvalNetworkProof {
     derefs: &Derefs,
     evals: &[Scalar],
     gens: &SparseMatPolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> Self {
     transcript.append_protocol_name(PolyEvalNetworkProof::protocol_name());
@@ -1362,7 +1380,7 @@ impl PolyEvalNetworkProof {
     ry: &[Scalar],
     r_mem_check: &(Scalar, Scalar),
     nz: usize,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(), ProofVerifyError> {
     let timer = Timer::new("verify_polyeval_proof");
     transcript.append_protocol_name(PolyEvalNetworkProof::protocol_name());
@@ -1451,7 +1469,7 @@ impl SparseMatPolyEvalProof {
     ry: &[Scalar],
     evals: &[Scalar], // a vector evaluation of \widetilde{M}(r = (rx,ry)) for each M
     gens: &SparseMatPolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> SparseMatPolyEvalProof {
     transcript.append_protocol_name(SparseMatPolyEvalProof::protocol_name());
@@ -1473,7 +1491,7 @@ impl SparseMatPolyEvalProof {
     let timer_commit = Timer::new("commit_nondet_witness");
     let comm_derefs = {
       let comm = derefs.commit(&gens.gens_derefs);
-      comm.append_to_transcript(b"comm_poly_row_col_ops_val", transcript);
+      comm.append_to_keccak_transcript(b"comm_poly_row_col_ops_val", transcript);
       comm
     };
     timer_commit.stop();
@@ -1521,7 +1539,7 @@ impl SparseMatPolyEvalProof {
     ry: &[Scalar],
     evals: &[Scalar], // evaluation of \widetilde{M}(r = (rx,ry))
     gens: &SparseMatPolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(SparseMatPolyEvalProof::protocol_name());
 
@@ -1534,7 +1552,7 @@ impl SparseMatPolyEvalProof {
     // add claims to transcript and obtain challenges for randomized mem-check circuit
     self
       .comm_derefs
-      .append_to_transcript(b"comm_poly_row_col_ops_val", transcript);
+      .append_to_keccak_transcript(b"comm_poly_row_col_ops_val", transcript);
 
     // produce a random element from the transcript for hash function
     let r_mem_check = transcript.challenge_vector(b"challenge_r_hash", 2);
@@ -1643,7 +1661,7 @@ mod tests {
     let evals = vec![eval[0], eval[0], eval[0]];
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let proof = SparseMatPolyEvalProof::prove(
       &dense,
       &rx,
@@ -1654,7 +1672,7 @@ mod tests {
       &mut random_tape,
     );
 
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"example");
     assert!(proof
       .verify(
         &poly_comm,

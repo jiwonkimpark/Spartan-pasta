@@ -13,8 +13,9 @@ use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::sumcheck::ZKSumcheckInstanceProof;
 use super::timer::Timer;
-use super::transcript::{AppendToTranscript, ProofTranscript};
+use super::transcript::{AppendToTranscript, Keccak256Transcript, ProofTranscript};
 use core::iter;
+use std::time::Instant;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +82,7 @@ impl R1CSProof {
     evals_Bz: &mut DensePolynomial,
     evals_Cz: &mut DensePolynomial,
     gens: &R1CSSumcheckGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> (ZKSumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>, Scalar) {
     let comb_func = |poly_A_comp: &Scalar,
@@ -116,7 +117,7 @@ impl R1CSProof {
     evals_z: &mut DensePolynomial,
     evals_ABC: &mut DensePolynomial,
     gens: &R1CSSumcheckGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> (ZKSumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>, Scalar) {
     let comb_func =
@@ -146,7 +147,7 @@ impl R1CSProof {
     vars: Vec<Scalar>,
     input: &[Scalar],
     gens: &R1CSGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
     let timer_prove = Timer::new("R1CSProof::prove");
@@ -155,8 +156,9 @@ impl R1CSProof {
     // we currently require the number of |inputs| + 1 to be at most number of vars
     assert!(input.len() < vars.len());
 
-    input.append_to_transcript(b"input", transcript);
+    input.append_to_keccak_transcript(b"input", transcript);
 
+    let mut timer = Instant::now();
     let timer_commit = Timer::new("polycommit");
     let (poly_vars, comm_vars, blinds_vars) = {
       // create a multilinear polynomial using the supplied assignment for variables
@@ -166,11 +168,13 @@ impl R1CSProof {
       let (comm_vars, blinds_vars) = poly_vars.commit(&gens.gens_pc, Some(random_tape));
 
       // add the commitment to the prover's transcript
-      comm_vars.append_to_transcript(b"poly_commitment", transcript);
+      comm_vars.append_to_keccak_transcript(b"poly_commitment", transcript);
       (poly_vars, comm_vars, blinds_vars)
     };
     timer_commit.stop();
+    println!("timer_commit: {:.2?}", timer.elapsed());
 
+    timer = Instant::now();
     let timer_sc_proof_phase1 = Timer::new("prove_sc_phase_one");
 
     // append input to variables to create a single vector z
@@ -207,6 +211,7 @@ impl R1CSProof {
     assert_eq!(poly_Bz.len(), 1);
     assert_eq!(poly_Cz.len(), 1);
     timer_sc_proof_phase1.stop();
+    println!("timer_sc_proof_phase1: {:.2?}", timer.elapsed());
 
     let (tau_claim, Az_claim, Bz_claim, Cz_claim) =
       (&poly_tau[0], &poly_Az[0], &poly_Bz[0], &poly_Cz[0]);
@@ -217,6 +222,7 @@ impl R1CSProof {
       random_tape.random_scalar(b"prod_Az_Bz_blind"),
     );
 
+    timer = Instant::now();
     let (pok_Cz_claim, comm_Cz_claim) = {
       KnowledgeProof::prove(
         &gens.gens_sc.gens_1,
@@ -226,7 +232,9 @@ impl R1CSProof {
         &Cz_blind,
       )
     };
+    println!("knowledge proof: {:.2?}", timer.elapsed());
 
+    timer = Instant::now();
     let (proof_prod, comm_Az_claim, comm_Bz_claim, comm_prod_Az_Bz_claims) = {
       let prod = Az_claim * Bz_claim;
       ProductProof::prove(
@@ -241,12 +249,14 @@ impl R1CSProof {
         &prod_Az_Bz_blind,
       )
     };
+    println!("product proof: {:.2?}", timer.elapsed());
 
-    comm_Az_claim.append_to_transcript(b"comm_Az_claim", transcript);
-    comm_Bz_claim.append_to_transcript(b"comm_Bz_claim", transcript);
-    comm_Cz_claim.append_to_transcript(b"comm_Cz_claim", transcript);
-    comm_prod_Az_Bz_claims.append_to_transcript(b"comm_prod_Az_Bz_claims", transcript);
+    comm_Az_claim.append_to_keccak_transcript(b"comm_Az_claim", transcript);
+    comm_Bz_claim.append_to_keccak_transcript(b"comm_Bz_claim", transcript);
+    comm_Cz_claim.append_to_keccak_transcript(b"comm_Cz_claim", transcript);
+    comm_prod_Az_Bz_claims.append_to_keccak_transcript(b"comm_prod_Az_Bz_claims", transcript);
 
+    timer = Instant::now();
     // prove the final step of sum-check #1
     let taus_bound_rx = tau_claim;
     let blind_expected_claim_postsc1 = taus_bound_rx * (prod_Az_Bz_blind - Cz_blind);
@@ -260,7 +270,9 @@ impl R1CSProof {
       &claim_post_phase1,
       &blind_claim_postsc1,
     );
+    println!("equality proof: {:.2?}", timer.elapsed());
 
+    timer = Instant::now();
     let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
     // combine the three claims into a single claim
     let r_A = transcript.challenge_scalar(b"challenege_Az");
@@ -294,7 +306,9 @@ impl R1CSProof {
       random_tape,
     );
     timer_sc_proof_phase2.stop();
+    println!("timer_sc_proof_phase2: {:.2?}", timer.elapsed());
 
+    timer = Instant::now();
     let timer_polyeval = Timer::new("polyeval");
     let eval_vars_at_ry = poly_vars.evaluate(&ry[1..]);
     let blind_eval = random_tape.random_scalar(b"blind_eval");
@@ -309,7 +323,9 @@ impl R1CSProof {
       random_tape,
     );
     timer_polyeval.stop();
+    println!("poly eval proof: {:.2?}", timer.elapsed());
 
+    timer = Instant::now();
     // prove the final step of sum-check #2
     let blind_eval_Z_at_ry = (Scalar::one() - ry[0]) * blind_eval;
     let blind_expected_claim_postsc2 = claims_phase2[1] * blind_eval_Z_at_ry;
@@ -323,6 +339,7 @@ impl R1CSProof {
       &claim_post_phase2,
       &blind_claim_postsc2,
     );
+    println!("equality proof: {:.2?}", timer.elapsed());
 
     timer_prove.stop();
 
@@ -354,18 +371,18 @@ impl R1CSProof {
     num_cons: usize,
     input: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     gens: &R1CSGens,
   ) -> Result<(Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
     transcript.append_protocol_name(R1CSProof::protocol_name());
 
-    input.append_to_transcript(b"input", transcript);
+    input.append_to_keccak_transcript(b"input", transcript);
 
     let n = num_vars;
     // add the commitment to the verifier's transcript
     self
       .comm_vars
-      .append_to_transcript(b"poly_commitment", transcript);
+      .append_to_keccak_transcript(b"poly_commitment", transcript);
 
     let (num_rounds_x, num_rounds_y) = (num_cons.log_2(), (2 * num_vars).log_2());
 
@@ -397,10 +414,10 @@ impl R1CSProof {
       comm_prod_Az_Bz_claims,
     )?;
 
-    comm_Az_claim.append_to_transcript(b"comm_Az_claim", transcript);
-    comm_Bz_claim.append_to_transcript(b"comm_Bz_claim", transcript);
-    comm_Cz_claim.append_to_transcript(b"comm_Cz_claim", transcript);
-    comm_prod_Az_Bz_claims.append_to_transcript(b"comm_prod_Az_Bz_claims", transcript);
+    comm_Az_claim.append_to_keccak_transcript(b"comm_Az_claim", transcript);
+    comm_Bz_claim.append_to_keccak_transcript(b"comm_Bz_claim", transcript);
+    comm_Cz_claim.append_to_keccak_transcript(b"comm_Cz_claim", transcript);
+    comm_prod_Az_Bz_claims.append_to_keccak_transcript(b"comm_prod_Az_Bz_claims", transcript);
 
     let taus_bound_rx: Scalar = (0..rx.len())
       .map(|i| rx[i] * tau[i] + (Scalar::one() - rx[i]) * (Scalar::one() - tau[i]))
@@ -579,7 +596,7 @@ mod tests {
     let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let (proof, rx, ry) = R1CSProof::prove(
       &inst,
       vars,

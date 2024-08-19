@@ -5,7 +5,7 @@ use super::group::{CompressedGroup, CompressedGroupExt, GroupElement};
 use super::math::Math;
 use super::random::RandomTape;
 use super::scalar::Scalar;
-use super::transcript::{AppendToTranscript, ProofTranscript};
+use super::transcript::{AppendToTranscript, Keccak256Transcript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +26,7 @@ impl KnowledgeProof {
 
   pub fn prove(
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
     x: &Scalar,
     r: &Scalar,
@@ -38,10 +38,10 @@ impl KnowledgeProof {
     let t2 = random_tape.random_scalar(b"t2");
 
     let C = x.commit(r, gens_n).compress();
-    C.append_to_transcript(b"C", transcript);
+    C.append_to_keccak_transcript(b"C", transcript);
 
     let alpha = t1.commit(&t2, gens_n).compress();
-    alpha.append_to_transcript(b"alpha", transcript);
+    alpha.append_to_keccak_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -54,12 +54,12 @@ impl KnowledgeProof {
   pub fn verify(
     &self,
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     C: &CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(KnowledgeProof::protocol_name());
-    C.append_to_transcript(b"C", transcript);
-    self.alpha.append_to_transcript(b"alpha", transcript);
+    C.append_to_keccak_transcript(b"C", transcript);
+    self.alpha.append_to_keccak_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -87,7 +87,7 @@ impl EqualityProof {
 
   pub fn prove(
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
     v1: &Scalar,
     s1: &Scalar,
@@ -100,13 +100,13 @@ impl EqualityProof {
     let r = random_tape.random_scalar(b"r");
 
     let C1 = v1.commit(s1, gens_n).compress();
-    C1.append_to_transcript(b"C1", transcript);
+    C1.append_to_keccak_transcript(b"C1", transcript);
 
     let C2 = v2.commit(s2, gens_n).compress();
-    C2.append_to_transcript(b"C2", transcript);
+    C2.append_to_keccak_transcript(b"C2", transcript);
 
     let alpha = (r * gens_n.h).compress();
-    alpha.append_to_transcript(b"alpha", transcript);
+    alpha.append_to_keccak_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -118,14 +118,14 @@ impl EqualityProof {
   pub fn verify(
     &self,
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     C1: &CompressedGroup,
     C2: &CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(EqualityProof::protocol_name());
-    C1.append_to_transcript(b"C1", transcript);
-    C2.append_to_transcript(b"C2", transcript);
-    self.alpha.append_to_transcript(b"alpha", transcript);
+    C1.append_to_keccak_transcript(b"C1", transcript);
+    C2.append_to_keccak_transcript(b"C2", transcript);
+    self.alpha.append_to_keccak_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
     let rhs = {
@@ -158,7 +158,7 @@ impl ProductProof {
 
   pub fn prove(
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
     x: &Scalar,
     rX: &Scalar,
@@ -182,19 +182,19 @@ impl ProductProof {
     let b5 = random_tape.random_scalar(b"b5");
 
     let X = x.commit(rX, gens_n).compress();
-    X.append_to_transcript(b"X", transcript);
+    X.append_to_keccak_transcript(b"X", transcript);
 
     let Y = y.commit(rY, gens_n).compress();
-    Y.append_to_transcript(b"Y", transcript);
+    Y.append_to_keccak_transcript(b"Y", transcript);
 
     let Z = z.commit(rZ, gens_n).compress();
-    Z.append_to_transcript(b"Z", transcript);
+    Z.append_to_keccak_transcript(b"Z", transcript);
 
     let alpha = b1.commit(&b2, gens_n).compress();
-    alpha.append_to_transcript(b"alpha", transcript);
+    alpha.append_to_keccak_transcript(b"alpha", transcript);
 
     let beta = b3.commit(&b4, gens_n).compress();
-    beta.append_to_transcript(b"beta", transcript);
+    beta.append_to_keccak_transcript(b"beta", transcript);
 
     let delta = {
       let gens_X = &MultiCommitGens {
@@ -204,7 +204,7 @@ impl ProductProof {
       };
       b3.commit(&b5, gens_X).compress()
     };
-    delta.append_to_transcript(b"delta", transcript);
+    delta.append_to_keccak_transcript(b"delta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -245,19 +245,19 @@ impl ProductProof {
   pub fn verify(
     &self,
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     X: &CompressedGroup,
     Y: &CompressedGroup,
     Z: &CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(ProductProof::protocol_name());
 
-    X.append_to_transcript(b"X", transcript);
-    Y.append_to_transcript(b"Y", transcript);
-    Z.append_to_transcript(b"Z", transcript);
-    self.alpha.append_to_transcript(b"alpha", transcript);
-    self.beta.append_to_transcript(b"beta", transcript);
-    self.delta.append_to_transcript(b"delta", transcript);
+    X.append_to_keccak_transcript(b"X", transcript);
+    Y.append_to_keccak_transcript(b"Y", transcript);
+    Z.append_to_keccak_transcript(b"Z", transcript);
+    self.alpha.append_to_keccak_transcript(b"alpha", transcript);
+    self.beta.append_to_keccak_transcript(b"beta", transcript);
+    self.delta.append_to_keccak_transcript(b"delta", transcript);
 
     let z1 = self.z[0];
     let z2 = self.z[1];
@@ -311,7 +311,7 @@ impl DotProductProof {
   pub fn prove(
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
     x_vec: &[Scalar],
     blind_x: &Scalar,
@@ -332,20 +332,20 @@ impl DotProductProof {
     let r_beta = random_tape.random_scalar(b"r_beta");
 
     let Cx = x_vec.commit(blind_x, gens_n).compress();
-    Cx.append_to_transcript(b"Cx", transcript);
+    Cx.append_to_keccak_transcript(b"Cx", transcript);
 
     let Cy = y.commit(blind_y, gens_1).compress();
-    Cy.append_to_transcript(b"Cy", transcript);
+    Cy.append_to_keccak_transcript(b"Cy", transcript);
 
-    a_vec.append_to_transcript(b"a", transcript);
+    a_vec.append_to_keccak_transcript(b"a", transcript);
 
     let delta = d_vec.commit(&r_delta, gens_n).compress();
-    delta.append_to_transcript(b"delta", transcript);
+    delta.append_to_keccak_transcript(b"delta", transcript);
 
     let dotproduct_a_d = DotProductProof::compute_dotproduct(a_vec, &d_vec);
 
     let beta = dotproduct_a_d.commit(&r_beta, gens_1).compress();
-    beta.append_to_transcript(b"beta", transcript);
+    beta.append_to_keccak_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -373,7 +373,7 @@ impl DotProductProof {
     &self,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     a: &[Scalar],
     Cx: &CompressedGroup,
     Cy: &CompressedGroup,
@@ -382,11 +382,11 @@ impl DotProductProof {
     assert_eq!(gens_1.n, 1);
 
     transcript.append_protocol_name(DotProductProof::protocol_name());
-    Cx.append_to_transcript(b"Cx", transcript);
-    Cy.append_to_transcript(b"Cy", transcript);
-    a.append_to_transcript(b"a", transcript);
-    self.delta.append_to_transcript(b"delta", transcript);
-    self.beta.append_to_transcript(b"beta", transcript);
+    Cx.append_to_keccak_transcript(b"Cx", transcript);
+    Cy.append_to_keccak_transcript(b"Cy", transcript);
+    a.append_to_keccak_transcript(b"a", transcript);
+    self.delta.append_to_keccak_transcript(b"delta", transcript);
+    self.beta.append_to_keccak_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -439,7 +439,7 @@ impl DotProductProofLog {
 
   pub fn prove(
     gens: &DotProductProofGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     random_tape: &mut RandomTape,
     x_vec: &[Scalar],
     blind_x: &Scalar,
@@ -466,12 +466,12 @@ impl DotProductProofLog {
     };
 
     let Cx = x_vec.commit(blind_x, &gens.gens_n).compress();
-    Cx.append_to_transcript(b"Cx", transcript);
+    Cx.append_to_keccak_transcript(b"Cx", transcript);
 
     let Cy = y.commit(blind_y, &gens.gens_1).compress();
-    Cy.append_to_transcript(b"Cy", transcript);
+    Cy.append_to_keccak_transcript(b"Cy", transcript);
 
-    a_vec.append_to_transcript(b"a", transcript);
+    a_vec.append_to_keccak_transcript(b"a", transcript);
 
     // sample a random base and scale the generator used for
     // the output of the inner product
@@ -500,10 +500,10 @@ impl DotProductProofLog {
       };
       d.commit(&r_delta, &gens_hat).compress()
     };
-    delta.append_to_transcript(b"delta", transcript);
+    delta.append_to_keccak_transcript(b"delta", transcript);
 
     let beta = d.commit(&r_beta, &gens_1_scaled).compress();
-    beta.append_to_transcript(b"beta", transcript);
+    beta.append_to_keccak_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -527,7 +527,7 @@ impl DotProductProofLog {
     &self,
     n: usize,
     gens: &DotProductProofGens,
-    transcript: &mut Transcript,
+    transcript: &mut Keccak256Transcript,
     a: &[Scalar],
     Cx: &CompressedGroup,
     Cy: &CompressedGroup,
@@ -536,9 +536,9 @@ impl DotProductProofLog {
     assert_eq!(a.len(), n);
 
     transcript.append_protocol_name(DotProductProofLog::protocol_name());
-    Cx.append_to_transcript(b"Cx", transcript);
-    Cy.append_to_transcript(b"Cy", transcript);
-    a.append_to_transcript(b"a", transcript);
+    Cx.append_to_keccak_transcript(b"Cx", transcript);
+    Cy.append_to_keccak_transcript(b"Cy", transcript);
+    a.append_to_keccak_transcript(b"a", transcript);
 
     // sample a random base and scale the generator used for
     // the output of the inner product
@@ -551,8 +551,8 @@ impl DotProductProofLog {
       self
         .bullet_reduction_proof
         .verify(n, a, transcript, &Gamma, &gens.gens_n.G)?;
-    self.delta.append_to_transcript(b"delta", transcript);
-    self.beta.append_to_transcript(b"beta", transcript);
+    self.delta.append_to_keccak_transcript(b"delta", transcript);
+    self.beta.append_to_keccak_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -591,11 +591,11 @@ mod tests {
     let r = Scalar::random(&mut csprng);
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let (proof, committed_value) =
       KnowledgeProof::prove(&gens_1, &mut prover_transcript, &mut random_tape, &x, &r);
 
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"example");
     assert!(proof
       .verify(&gens_1, &mut verifier_transcript, &committed_value)
       .is_ok());
@@ -612,7 +612,7 @@ mod tests {
     let s2 = Scalar::random(&mut csprng);
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let (proof, C1, C2) = EqualityProof::prove(
       &gens_1,
       &mut prover_transcript,
@@ -623,7 +623,7 @@ mod tests {
       &s2,
     );
 
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"example");
     assert!(proof
       .verify(&gens_1, &mut verifier_transcript, &C1, &C2)
       .is_ok());
@@ -642,7 +642,7 @@ mod tests {
     let rZ = Scalar::random(&mut csprng);
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let (proof, X, Y, Z) = ProductProof::prove(
       &gens_1,
       &mut prover_transcript,
@@ -655,7 +655,7 @@ mod tests {
       &rZ,
     );
 
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"example");
     assert!(proof
       .verify(&gens_1, &mut verifier_transcript, &X, &Y, &Z)
       .is_ok());
@@ -681,7 +681,7 @@ mod tests {
     let r_y = Scalar::random(&mut csprng);
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let (proof, Cx, Cy) = DotProductProof::prove(
       &gens_1,
       &gens_1024,
@@ -694,7 +694,7 @@ mod tests {
       &r_y,
     );
 
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"example");
     assert!(proof
       .verify(&gens_1, &gens_1024, &mut verifier_transcript, &a, &Cx, &Cy)
       .is_ok());
@@ -716,7 +716,7 @@ mod tests {
     let r_y = Scalar::random(&mut csprng);
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = Keccak256Transcript::new(b"example");
     let (proof, Cx, Cy) = DotProductProofLog::prove(
       &gens,
       &mut prover_transcript,
@@ -728,7 +728,7 @@ mod tests {
       &r_y,
     );
 
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = Keccak256Transcript::new(b"example");
     assert!(proof
       .verify(n, &gens, &mut verifier_transcript, &a, &Cx, &Cy)
       .is_ok());
