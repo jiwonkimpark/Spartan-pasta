@@ -32,7 +32,6 @@ mod unipoly;
 mod arithmetic;
 mod compression;
 use core::cmp::max;
-use std::time::Instant;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
 use r1csinstance::{
@@ -510,21 +509,14 @@ impl NIZK {
     gens: &NIZKGens,
     transcript: &mut Keccak256Transcript,
   ) -> Self {
-    let timer_prove = Timer::new("NIZK::prove");
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
     let mut random_tape = RandomTape::new(b"proof");
-    let mut timer = Instant::now();
     transcript.append_protocol_name(NIZK::protocol_name());
-    println!("1. append protocol name to transcript: {:.2?}", timer.elapsed());
-
-    timer = Instant::now();
     transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
-    println!("2. append message to transcript: {:.2?}", timer.elapsed());
 
     let (r1cs_sat_proof, rx, ry) = {
       // we might need to pad variables
-      timer = Instant::now();
       let padded_vars = {
         let num_padded_vars = inst.inst.get_num_vars();
         let num_vars = vars.assignment.len();
@@ -534,9 +526,7 @@ impl NIZK {
           vars
         }
       };
-      println!("3. padding variables: {:.2?}", timer.elapsed());
 
-      timer = Instant::now();
       let (proof, rx, ry) = R1CSProof::prove(
         &inst.inst,
         padded_vars.assignment,
@@ -545,12 +535,6 @@ impl NIZK {
         transcript,
         &mut random_tape,
       );
-      println!("4. R1CS proof: {:.2?}", timer.elapsed());
-
-      timer = Instant::now();
-      let proof_encoded: Vec<u8> = bincode::serde::encode_to_vec(&proof, bincode::config::legacy()).unwrap();
-      println!("5. encoding proof: {:.2?}", timer.elapsed());
-
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
       (proof, rx, ry)
     };
