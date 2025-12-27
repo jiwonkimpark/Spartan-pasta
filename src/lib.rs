@@ -535,11 +535,9 @@ impl NIZK {
         transcript,
         &mut random_tape,
       );
-      Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
       (proof, rx, ry)
     };
 
-    timer_prove.stop();
     NIZK {
       r1cs_sat_proof,
       r: (rx, ry),
